@@ -54,9 +54,22 @@
     'Garden', 'Parking', 'Smoking allowed', 'Pets allowed',
   ];
 
+  // Full list mirrors frontend `what_languages_speak_view.dart::_allLanguages`
   const LANGUAGES = [
-    'English', 'German', 'French', 'Italian', 'Spanish',
-    'Portuguese', 'Albanian', 'Afrikaans', 'Afar',
+    'English','German','French','Afar','Afrikaans','Albanian','American Sign Language',
+    'Amharic','Arabic','Aramaic','Armenian','Assamese','Australian Sign Language',
+    'Azerbaijani','Bahasa Indonesia','Bahasa Malaysia','Bengali','Bislama','Bosnian',
+    'Bulgarian','Burmese','Cantonese','Catalan','Chinese','Croatian','Czech','Danish',
+    'Dari','Dutch','Dzongkha','Estonian','Fijian','Filipino','Finnish','Georgian',
+    'Greek','Gujarati','Haitian Creole','Hausa','Hebrew','Hindi','Hiri Motu','Hungarian',
+    'Icelandic','Igbo','Irish','Italian','Japanese','Kannada','Kazakh','Khmer','Korean',
+    'Kurdish','Lao','Latin','Latvian','Lithuanian','Luxembourgish','Macedonian','Malagasy',
+    'Malayalam','Maltese','Maori','Marathi','Mongolian','Nepali','New Zealand Sign Language',
+    'Norwegian','Oromo','Pashto','Persian','Polish','Portuguese','Punjabi','Romanian',
+    'Russian','Samoan','Serbian','Shona','Sindhi','Sinhala','Slovak','Slovenian','Somali',
+    'Southern Sotho','Spanish','Swahili','Swedish','Tagalog','Tajik','Tamil','Telugu',
+    'Thai','Tigrinya','Tok Pisin','Tongan','Tswana','Turkish','Turkmen','Ukrainian',
+    'Urdu','Uzbek','Vietnamese','Welsh','Xhosa','Yiddish','Yoruba','Zulu',
   ];
 
   // === 2. UTILITIES ===
@@ -505,6 +518,37 @@
     return i;
   };
 
+  // Type-ahead combobox for multi-select string values.
+  // Selected values render as removable chips above the input.
+  // Matching suggestions drop down below the input as the user types.
+  const makeCombo = (key, options) => {
+    const wrap = document.createElement('div');
+    wrap.className = 'lfb__cb';
+    wrap.dataset.cbKey = key;
+
+    const chips = document.createElement('div');
+    chips.className = 'lfb__cb__chips';
+    wrap.appendChild(chips);
+
+    const inputWrap = document.createElement('div');
+    inputWrap.className = 'lfb__cb__iw';
+    wrap.appendChild(inputWrap);
+
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'lfb__cb__input';
+    input.placeholder = 'Type to search…';
+    input.autocomplete = 'off';
+    inputWrap.appendChild(input);
+
+    const list = document.createElement('div');
+    list.className = 'lfb__cb__list';
+    inputWrap.appendChild(list);
+
+    wrap._lfbOptions = options;
+    return wrap;
+  };
+
   const buildFilterPanel = () => {
     const panel = document.createElement('div');
     panel.id = 'lfb-fp';
@@ -567,7 +611,7 @@
     body.appendChild(makeGroup('Flatmates age range',
       [makeRange('lfb-f-amin', 'lfb-f-amax', { min: 0, max: 100, step: 1, placeholderMin: 'Min', placeholderMax: 'Max' })]));
 
-    body.appendChild(makeGroup('Gender preference',
+    body.appendChild(makeGroup('Gender preference (same gender flat)',
       [makeChips('gender', [['any','Any'],['female','Female'],['male','Male'],['other','Other']])]));
 
     body.appendChild(makeGroup('Student-only flats',
@@ -577,7 +621,7 @@
       [makeChips('amen', AMENITIES.map(a => [a, a]), true)]));
 
     body.appendChild(makeGroup('Languages spoken (any match)',
-      [makeChips('lang', LANGUAGES.map(l => [l, l]), true)]));
+      [makeCombo('lang', LANGUAGES)]));
 
     c.appendChild(body);
 
@@ -635,6 +679,87 @@
     dateBind('lfb-f-from', 'from');
     dateBind('lfb-f-until', 'until');
 
+    // ───── Combobox (multi-select with type-ahead) ─────
+    const renderComboChips = (comboWrap) => {
+      const key = comboWrap.dataset.cbKey;
+      const chips = comboWrap.querySelector('.lfb__cb__chips');
+      while (chips.firstChild) chips.removeChild(chips.firstChild);
+      state[key].forEach(val => {
+        const chip = document.createElement('span');
+        chip.className = 'lfb__cb__chip';
+        const lbl = document.createElement('span');
+        lbl.textContent = val;
+        chip.appendChild(lbl);
+        const x = document.createElement('button');
+        x.type = 'button';
+        x.className = 'lfb__cb__x';
+        x.textContent = '×';
+        x.addEventListener('click', () => {
+          const idx = state[key].indexOf(val);
+          if (idx !== -1) state[key].splice(idx, 1);
+          renderComboChips(comboWrap);
+          onChange();
+        });
+        chip.appendChild(x);
+        chips.appendChild(chip);
+      });
+    };
+
+    const wireCombo = (comboWrap) => {
+      const key = comboWrap.dataset.cbKey;
+      const input = comboWrap.querySelector('.lfb__cb__input');
+      const list = comboWrap.querySelector('.lfb__cb__list');
+      const options = comboWrap._lfbOptions || [];
+
+      const renderList = (query) => {
+        const q = (query || '').toLowerCase().trim();
+        const matches = options
+          .filter(o => state[key].indexOf(o) === -1)
+          .filter(o => q ? o.toLowerCase().indexOf(q) !== -1 : true)
+          .slice(0, 50);
+        while (list.firstChild) list.removeChild(list.firstChild);
+        if (!matches.length) { list.classList.remove('open'); return; }
+        matches.forEach(opt => {
+          const item = document.createElement('button');
+          item.type = 'button';
+          item.className = 'lfb__cb__item';
+          item.textContent = opt;
+          item.addEventListener('mousedown', (e) => {
+            e.preventDefault(); // keep focus on input
+            state[key].push(opt);
+            input.value = '';
+            renderComboChips(comboWrap);
+            renderList('');
+            list.classList.remove('open');
+            onChange();
+          });
+          list.appendChild(item);
+        });
+        list.classList.add('open');
+      };
+
+      input.addEventListener('focus', () => renderList(input.value));
+      input.addEventListener('input', () => renderList(input.value));
+      input.addEventListener('blur', () => {
+        // Close on blur with small delay so item clicks register
+        setTimeout(() => list.classList.remove('open'), 120);
+      });
+      input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          const first = list.querySelector('.lfb__cb__item');
+          if (first) first.dispatchEvent(new MouseEvent('mousedown'));
+        } else if (e.key === 'Backspace' && input.value === '' && state[key].length) {
+          state[key].pop();
+          renderComboChips(comboWrap);
+          renderList('');
+          onChange();
+        }
+      });
+    };
+
+    panel.querySelectorAll('.lfb__cb').forEach(wireCombo);
+
     // Toggle move-out date group based on tenancy type
     const updateMoveOutVisibility = () => {
       const group = document.getElementById('lfb-f-untilGroup');
@@ -687,6 +812,7 @@
         const multi = group.dataset.m;
         $$('.lfb__fp__ch', group).forEach(c => c.classList.toggle('act', !multi && c.dataset.v === 'any'));
       });
+      panel.querySelectorAll('.lfb__cb').forEach(renderComboChips);
       updateMoveOutVisibility();
       onChange();
     });
@@ -804,6 +930,32 @@
       'font-weight:500;cursor:pointer;font-family:inherit;border:1px solid #ece8df;',
       'background:#fff;color:#1a1714}',
       '.lfb__fp__f .ap{background:#1a1714;color:#fff;border-color:transparent}',
+      /* Combobox */
+      '.lfb__cb__chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px}',
+      '.lfb__cb__chips:empty{margin-bottom:0}',
+      '.lfb__cb__chip{display:inline-flex;align-items:center;gap:6px;',
+      'padding:5px 6px 5px 12px;border-radius:999px;',
+      'background:linear-gradient(135deg,#ff8b3d,#ff5e3a);color:#fff;',
+      'font-size:13px;font-family:inherit}',
+      '.lfb__cb__x{background:rgba(255,255,255,.22);color:#fff;border:0;',
+      'width:18px;height:18px;border-radius:50%;font-size:14px;line-height:1;',
+      'cursor:pointer;display:flex;align-items:center;justify-content:center;',
+      'padding:0;font-family:inherit}',
+      '.lfb__cb__x:hover{background:rgba(255,255,255,.4)}',
+      '.lfb__cb__iw{position:relative}',
+      '.lfb__cb__input{width:100%;padding:10px 14px;border:1px solid #ece8df;',
+      'border-radius:10px;font-size:14px;font-family:inherit;background:#fff;',
+      'box-sizing:border-box}',
+      '.lfb__cb__input:focus{outline:0;border-color:#ff8b3d}',
+      '.lfb__cb__list{position:absolute;top:calc(100% + 4px);left:0;right:0;',
+      'max-height:240px;overflow-y:auto;background:#fff;border:1px solid #ece8df;',
+      'border-radius:10px;box-shadow:0 8px 24px rgba(20,16,12,.1);',
+      'z-index:1200;display:none;overscroll-behavior:contain}',
+      '.lfb__cb__list.open{display:block}',
+      '.lfb__cb__item{display:block;width:100%;text-align:left;padding:8px 14px;',
+      'background:none;border:0;cursor:pointer;font-size:14px;color:#1a1714;',
+      'font-family:inherit}',
+      '.lfb__cb__item:hover{background:#fffaf2}',
     ].join('');
     const s = document.createElement('style');
     s.id = 'lfb-master-css';
