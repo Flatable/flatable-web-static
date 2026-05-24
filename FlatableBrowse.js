@@ -481,18 +481,21 @@
     return g;
   };
 
-  const makeRange = (idMin, idMax, placeholderMin, placeholderMax, min, max) => {
+  // opts: {min, max, step, placeholderMin, placeholderMax}
+  const makeRange = (idMin, idMax, opts) => {
+    const o = opts || {};
     const rng = document.createElement('div');
     rng.className = 'lfb__fp__rng';
     const mkInput = (id, ph) => {
       const i = document.createElement('input');
       i.type = 'number'; i.id = id; i.placeholder = ph;
-      if (min != null) i.min = min;
-      if (max != null) i.max = max;
+      if (o.min != null) i.min = o.min;
+      if (o.max != null) i.max = o.max;
+      if (o.step != null) i.step = o.step;
       return i;
     };
-    rng.appendChild(mkInput(idMin, placeholderMin || 'Min'));
-    rng.appendChild(mkInput(idMax, placeholderMax || 'Max'));
+    rng.appendChild(mkInput(idMin, o.placeholderMin || 'Min'));
+    rng.appendChild(mkInput(idMax, o.placeholderMax || 'Max'));
     return rng;
   };
 
@@ -506,6 +509,9 @@
     const panel = document.createElement('div');
     panel.id = 'lfb-fp';
     panel.className = 'lfb__fp';
+    // Prevent Lenis smooth-scroll from hijacking wheel events inside the panel
+    // so its body scrolls independently from the page.
+    panel.setAttribute('data-lenis-prevent', 'true');
 
     const bg = document.createElement('div');
     bg.className = 'lfb__fp__bg';
@@ -514,6 +520,7 @@
 
     const c = document.createElement('div');
     c.className = 'lfb__fp__c';
+    c.setAttribute('data-lenis-prevent', 'true');
     panel.appendChild(c);
 
     const h = document.createElement('div');
@@ -530,18 +537,48 @@
 
     const body = document.createElement('div');
     body.className = 'lfb__fp__b';
-    body.appendChild(makeGroup('Rent (CHF)', [makeRange('lfb-f-rmin', 'lfb-f-rmax')]));
-    body.appendChild(makeGroup('Room size (m²)', [makeRange('lfb-f-szmin', 'lfb-f-szmax')]));
+    body.setAttribute('data-lenis-prevent', 'true');
+
+    body.appendChild(makeGroup('Rent (CHF)',
+      [makeRange('lfb-f-rmin', 'lfb-f-rmax', { min: 0, step: 100 })]));
+
+    body.appendChild(makeGroup('Room size (m²)',
+      [makeRange('lfb-f-szmin', 'lfb-f-szmax', { min: 0, step: 5 })]));
+
+    // Move-in date FIRST
     body.appendChild(makeGroup('Move-in by', [makeDateInput('lfb-f-from')]));
-    body.appendChild(makeGroup('Move-out no earlier than', [makeDateInput('lfb-f-until')]));
-    body.appendChild(makeGroup('Tenancy', [makeChips('type', [['any','Any'],['perm','Permanent'],['temp','Temporary']])]));
-    body.appendChild(makeGroup('Furnished', [makeChips('furn', [['any','Any'],['yes','Yes'],['no','No']])]));
-    body.appendChild(makeGroup('Flatmates', [makeRange('lfb-f-omin', 'lfb-f-omax', 'Min', 'Max', 1, 20)]));
-    body.appendChild(makeGroup('Flatmates age range', [makeRange('lfb-f-amin', 'lfb-f-amax', 'Min', 'Max', 0, 100)]));
-    body.appendChild(makeGroup('Gender preference', [makeChips('gender', [['any','Any'],['female','Female'],['male','Male'],['other','Other']])]));
-    body.appendChild(makeGroup('Student-only flats', [makeChips('student', [['any','Any'],['yes','Only'],['no','Exclude']])]));
-    body.appendChild(makeGroup('Amenities (all must match)', [makeChips('amen', AMENITIES.map(a => [a, a]), true)]));
-    body.appendChild(makeGroup('Languages spoken (any match)', [makeChips('lang', LANGUAGES.map(l => [l, l]), true)]));
+
+    // Tenancy chips
+    body.appendChild(makeGroup('Tenancy',
+      [makeChips('type', [['any','Any'],['perm','Permanent'],['temp','Temporary']])]));
+
+    // Move-out date: hidden by default; revealed only when type='temp'
+    const moveOutGroup = makeGroup('Move-out no earlier than', [makeDateInput('lfb-f-until')]);
+    moveOutGroup.id = 'lfb-f-untilGroup';
+    moveOutGroup.style.display = 'none';
+    body.appendChild(moveOutGroup);
+
+    body.appendChild(makeGroup('Furnished',
+      [makeChips('furn', [['any','Any'],['yes','Yes'],['no','No']])]));
+
+    body.appendChild(makeGroup('Flatmates',
+      [makeRange('lfb-f-omin', 'lfb-f-omax', { min: 0, max: 20, step: 1, placeholderMin: 'Min', placeholderMax: 'Max' })]));
+
+    body.appendChild(makeGroup('Flatmates age range',
+      [makeRange('lfb-f-amin', 'lfb-f-amax', { min: 0, max: 100, step: 1, placeholderMin: 'Min', placeholderMax: 'Max' })]));
+
+    body.appendChild(makeGroup('Gender preference',
+      [makeChips('gender', [['any','Any'],['female','Female'],['male','Male'],['other','Other']])]));
+
+    body.appendChild(makeGroup('Student-only flats',
+      [makeChips('student', [['any','Any'],['yes','Only'],['no','Exclude']])]));
+
+    body.appendChild(makeGroup('Amenities (all must match)',
+      [makeChips('amen', AMENITIES.map(a => [a, a]), true)]));
+
+    body.appendChild(makeGroup('Languages spoken (any match)',
+      [makeChips('lang', LANGUAGES.map(l => [l, l]), true)]));
+
     c.appendChild(body);
 
     const f = document.createElement('div');
@@ -598,6 +635,21 @@
     dateBind('lfb-f-from', 'from');
     dateBind('lfb-f-until', 'until');
 
+    // Toggle move-out date group based on tenancy type
+    const updateMoveOutVisibility = () => {
+      const group = document.getElementById('lfb-f-untilGroup');
+      if (!group) return;
+      group.style.display = (state.type === 'temp') ? '' : 'none';
+      if (state.type !== 'temp') {
+        // Clear move-out value when leaving temp
+        const inp = document.getElementById('lfb-f-until');
+        if (inp && inp.value) {
+          inp.value = '';
+          state.until = null;
+        }
+      }
+    };
+
     panel.querySelectorAll('[data-f]').forEach(group => {
       group.addEventListener('click', (e) => {
         const btn = e.target.closest('.lfb__fp__ch');
@@ -613,6 +665,7 @@
         } else {
           state[key] = val;
           $$('.lfb__fp__ch', group).forEach(c => c.classList.toggle('act', c === btn));
+          if (key === 'type') updateMoveOutVisibility();
         }
         onChange();
       });
@@ -634,6 +687,7 @@
         const multi = group.dataset.m;
         $$('.lfb__fp__ch', group).forEach(c => c.classList.toggle('act', !multi && c.dataset.v === 'any'));
       });
+      updateMoveOutVisibility();
       onChange();
     });
   };
@@ -730,7 +784,7 @@
       '.lfb__fp__h strong{font-size:18px}',
       '.lfb__fp__x{background:none;border:0;font-size:24px;cursor:pointer;color:#9c8a78;',
       'line-height:1;padding:0;width:32px;height:32px}',
-      '.lfb__fp__b{flex:1;overflow-y:auto;padding:20px 24px}',
+      '.lfb__fp__b{flex:1;overflow-y:auto;padding:20px 24px;overscroll-behavior:contain}',
       '.lfb__fp__g{margin-bottom:22px}',
       '.lfb__fp__g>label{display:block;font-size:12px;font-weight:600;color:#9c8a78;',
       'text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px}',
