@@ -280,11 +280,16 @@
     data.forEach(d => {
       const inViewport = bounds.contains([d.lng, d.lat]);
       const passesFilters = matchesFilters(d, state);
-      const visible = inViewport && passesFilters;
-      const target = d.wrap || d.card;
-      target.style.display = visible ? '' : 'none';
+      // Card-side: only render cards whose marker is inside the current viewport
+      // AND that match the user's filters.
+      const cardVisible = inViewport && passesFilters;
+      const cardTarget = d.wrap || d.card;
+      cardTarget.style.display = cardVisible ? '' : 'none';
+      // Map-side: hide marker entirely when filters don't pass.
+      // Viewport bounds don't matter for the marker — Leaflet/MapLibre clips
+      // off-screen markers automatically, so we only act on filter result.
       if (d.marker) {
-        d.marker.getElement().style.opacity = visible ? '1' : '0.3';
+        d.marker.getElement().style.display = passesFilters ? '' : 'none';
       }
     });
   };
