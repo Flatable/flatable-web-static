@@ -291,6 +291,7 @@
   const applyAll = (map, data, state) => {
     if (!map) return;
     const bounds = map.getBounds();
+    const visibleSlugs = [];
     data.forEach(d => {
       const inViewport = bounds.contains([d.lng, d.lat]);
       const passesFilters = matchesFilters(d, state);
@@ -299,6 +300,7 @@
       const cardVisible = inViewport && passesFilters;
       const cardTarget = d.wrap || d.card;
       cardTarget.style.display = cardVisible ? '' : 'none';
+      if (cardVisible && d.slug) visibleSlugs.push(d.slug);
       // Map-side: hide marker entirely when filters don't pass.
       // Viewport bounds don't matter for the marker — Leaflet/MapLibre clips
       // off-screen markers automatically, so we only act on filter result.
@@ -306,6 +308,14 @@
         d.marker.getElement().style.display = passesFilters ? '' : 'none';
       }
     });
+    // Persist the ordered slug list so the detail page's Skip button can advance
+    // through the same browse result set the user just saw.
+    try {
+      localStorage.setItem('flatable.browseList', JSON.stringify({
+        slugs: visibleSlugs,
+        ts: Date.now()
+      }));
+    } catch (e) { /* localStorage unavailable; skip persistence */ }
   };
 
   // === 8. CLICK SCROLL + PULSE ===

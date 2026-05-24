@@ -313,6 +313,44 @@
     });
   };
 
+  // === 8. Skip — advance through the persisted browse list ===
+  // Detail page URL: /flats/<slug>. Current slug is the last path segment.
+  const currentSlug = () => {
+    const parts = window.location.pathname.split('/').filter(Boolean);
+    return parts[parts.length - 1] || '';
+  };
+
+  const readBrowseList = () => {
+    try {
+      const raw = localStorage.getItem('flatable.browseList');
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      if (!parsed || !Array.isArray(parsed.slugs)) return null;
+      return parsed;
+    } catch (e) {
+      return null;
+    }
+  };
+
+  const nextSlug = (slug) => {
+    const list = readBrowseList();
+    if (!list || !list.slugs.length) return null;
+    const idx = list.slugs.indexOf(slug);
+    if (idx === -1) return null;
+    if (idx >= list.slugs.length - 1) return null;
+    return list.slugs[idx + 1];
+  };
+
+  const wireSkipButton = () => {
+    const skip = document.querySelector('.lf-bar__skip');
+    if (!skip) return;
+    skip.addEventListener('click', (e) => {
+      e.preventDefault();
+      const next = nextSlug(currentSlug());
+      window.location.href = next ? '/flats/' + next : '/browse-flats';
+    });
+  };
+
   // === Boot ===
   const boot = () => {
     injectCss();
@@ -322,6 +360,7 @@
     handleLookingForCard();
     handleHousehold();
     wireApplyButton();
+    wireSkipButton();
   };
 
   if (document.readyState === 'loading') {
