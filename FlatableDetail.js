@@ -111,7 +111,7 @@
 
   // === 4. Looking For ===
   const handleLookingForCard = () => {
-    const card = $('.lfg22__card--lookingfor');
+    const card = $('.lfg22__card--looking');
     if (!card) return;
     const bioEmpty = bioIsEmpty(card);
     const allTagsEmpty = handleTagGroups(card);
