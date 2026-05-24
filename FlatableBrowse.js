@@ -201,8 +201,22 @@
         female: parseNum(getText(card, 'current-female')) || 0,
         other: parseNum(getText(card, 'current-other')) || 0,
         studentRequired: getText(card, 'student-text').toLowerCase().indexOf('yes') !== -1,
+        slug: getText(card, 'slug'),
       };
     }).filter(Boolean);
+  };
+
+  // Fix card → detail-page navigation. Webflow's data-bind-href="slug" isn't
+  // being auto-resolved on the published page, so each card link renders with
+  // href="detail_flats" (the template page slug, no item slug). Set the real
+  // href per card from the hidden data-bind="slug" carrier.
+  const wireCardLinks = (data) => {
+    data.forEach(d => {
+      if (!d.slug) return;
+      const link = d.card.querySelector('.lfb__card__link');
+      if (!link) return;
+      link.setAttribute('href', '/flats/' + d.slug);
+    });
   };
 
   // === 6. MARKERS ===
@@ -996,6 +1010,7 @@
       window.LfbB = { map, data, ml: window.maplibregl };
 
       placeMarkers(map, data);
+      wireCardLinks(data);
       wireClickScroll(data);
 
       const onChange = () => applyAll(map, data, state);
