@@ -183,10 +183,22 @@
       attributionControl: false,
     });
     if (isMobile) {
-      // Re-apply after load in case Webflow's reflow shifted the canvas size.
+      // Container shrinks to 28vh AFTER MapLibre boots, so the canvas was
+      // sized to the default (~480px tall) — that pushed CH off-screen below
+      // the visible aside. Call resize() to make MapLibre adopt the real
+      // (smaller) container size, then re-centre.
       map.once('load', () => {
+        map.resize();
         map.jumpTo({ center: SWISS_CENTER, zoom: SWISS_MOBILE_ZOOM });
       });
+      // Watch the aside for actual size changes (e.g. when sticky toolbar
+      // measures finish) and resize again — the first resize sometimes
+      // happens before all CSS is settled.
+      const mountEl = document.getElementById(CFG.mapMountId);
+      if (mountEl && window.ResizeObserver) {
+        const ro = new ResizeObserver(() => map.resize());
+        ro.observe(mountEl);
+      }
     }
     map.addControl(new window.maplibregl.NavigationControl({ showCompass: false }), 'top-right');
     map.addControl(new window.maplibregl.AttributionControl({ compact: true }), 'bottom-right');
