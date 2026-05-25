@@ -1429,8 +1429,11 @@
       // sometimes traps vertical scroll on mobile webkit.
       '.lfb__sp{touch-action:pan-y!important;overscroll-behavior:contain!important;',
       'max-height:50vh!important;overflow-y:auto!important;', 'right:8px!important;left:auto!important}',
-      // Toolbar shield (the fixed-position shim used on desktop) — disable on mobile.
+      // Toolbar shield + spacer (both reserve space for the desktop fixed
+      // toolbar). On mobile the toolbar is inline so neither is needed; the
+      // 119px spacer was creating a big gap between the map and the first card.
       '.lfb__toolbar-shield{display:none!important}',
+      '#lfb-toolbar-spacer{display:none!important;height:0!important}',
       '}'
     ].join('');
     const s = document.createElement('style');
