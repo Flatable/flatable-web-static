@@ -751,7 +751,7 @@
     const title = document.querySelector('.lfh15__title')?.textContent?.trim() || '';
     const kicker = document.querySelector('.lfh15__kicker')?.textContent?.trim() || '';
     // Kicker reads like "8001 Zürich" — first token is postcode, rest is city.
-    const km = kicker.match(/^\s*(\d{4,6})\s+(.+?)\s*$/);
+    const km = kicker.match(/^\s*(\d{4,6})\s*(.+?)\s*$/);
     const postcode = km ? km[1] : '';
     const city = km ? km[2] : kicker;
     const photoCsv = document.querySelector('.lfh15__photo')?.getAttribute('data-photos') || '';
