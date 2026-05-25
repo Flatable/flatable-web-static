@@ -215,15 +215,24 @@
   // being auto-resolved on the published page, so each card link renders with
   // href="detail_flats" (the template page slug, no item slug). Set the real
   // href per card from the hidden data-bind="slug" carrier.
-  // Attach a shimmer class to every browse card image until it finishes loading.
-  // Safe to call repeatedly; cached images get the class removed immediately.
+  // Attach a shimmer class to every browse card image, but only reveal it
+  // after a 200ms delay so the placeholder doesn't flash on cached/fast loads.
+  const CARD_LOADING_REVEAL_DELAY = 200;
   const wireCardImageLoading = (data) => {
     data.forEach(d => {
       const img = d.card.querySelector('.lfb__card__img-1') || d.card.querySelector('img');
       if (!img) return;
       if (img.complete && img.naturalWidth > 0) return;
-      img.classList.add('lf-img-loading');
-      const done = () => img.classList.remove('lf-img-loading');
+      let revealTimer = setTimeout(() => {
+        if (!(img.complete && img.naturalWidth > 0)) {
+          img.classList.add('lf-img-loading');
+        }
+        revealTimer = null;
+      }, CARD_LOADING_REVEAL_DELAY);
+      const done = () => {
+        if (revealTimer) { clearTimeout(revealTimer); revealTimer = null; }
+        img.classList.remove('lf-img-loading');
+      };
       img.addEventListener('load', done, { once: true });
       img.addEventListener('error', done, { once: true });
     });
@@ -1291,9 +1300,10 @@
       // Tenancy/permanent tag on browse card: orange outline, transparent fill.
       '.lfb__card__perm-tag{background:transparent!important;background-color:transparent!important;',
       'border:1px solid #ff5e3a!important;color:#ff5e3a!important;font-weight:600}',
-      // Image loading shimmer — placeholder while a card photo is fetching.
+      // Image loading shimmer — neutral grey so it doesn't read as an orange
+      // box, only revealed after a 200ms delay (see JS) to skip cached loads.
       '@keyframes lf-img-shimmer{0%{background-position:-200% 0}100%{background-position:200% 0}}',
-      '.lf-img-loading{background:linear-gradient(90deg,#f0e7dd 0%,#faf5ee 50%,#f0e7dd 100%)!important;',
+      '.lf-img-loading{background:linear-gradient(90deg,#e8e8e8 0%,#f4f4f4 50%,#e8e8e8 100%)!important;',
       'background-size:200% 100%!important;animation:lf-img-shimmer 1.4s ease-in-out infinite}',
       '.lfb__fp{position:fixed;inset:0;z-index:1100;display:none}',
       '.lfb__fp.open{display:block}',

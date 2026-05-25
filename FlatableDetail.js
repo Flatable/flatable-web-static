@@ -57,9 +57,12 @@
         'color:#fff!important;border-color:transparent!important;display:inline-flex;',
         'align-items:center;gap:6px}',
       '.lfg22__chip .lf-chip__emoji{font-size:1em;line-height:1;flex:0 0 auto}',
-      // Image loading shimmer — covers the photo area while the asset fetches.
+      // Image loading shimmer — neutral light grey so it reads as "loading"
+      // not as an orange box. Only revealed after a 200ms delay (see JS) so
+      // cached/fast loads — common when stepping through the carousel — never
+      // flash a placeholder at all.
       '@keyframes lf-img-shimmer{0%{background-position:-200% 0}100%{background-position:200% 0}}',
-      '.lf-img-loading{background:linear-gradient(90deg,#f0e7dd 0%,#faf5ee 50%,#f0e7dd 100%)!important;',
+      '.lf-img-loading{background:linear-gradient(90deg,#e8e8e8 0%,#f4f4f4 50%,#e8e8e8 100%)!important;',
         'background-size:200% 100%!important;animation:lf-img-shimmer 1.4s ease-in-out infinite}',
       // Active carousel dash uses brand orange (overrides HeroSlider inline white).
       '.lfh15__photo-dot[aria-current="true"]{',
@@ -607,16 +610,34 @@
   };
 
   // === Image loading state ===
-  // Toggle the shimmer class while an image fetches. Safe to call repeatedly
-  // (e.g. each time the hero slider swaps src for the next photo).
+  // Show the shimmer ONLY for loads that take longer than 200ms. Cached
+  // navigation between carousel photos typically resolves in <100ms, so the
+  // user never sees a flash — matches the Material Design "delay loading
+  // indicators" pattern.
+  const LOADING_REVEAL_DELAY = 200;
   const applyLoadingShimmer = (img) => {
     if (!img) return;
+    if (img._lfRevealTimer) {
+      clearTimeout(img._lfRevealTimer);
+      img._lfRevealTimer = null;
+    }
     if (img.complete && img.naturalWidth > 0) {
       img.classList.remove('lf-img-loading');
       return;
     }
-    img.classList.add('lf-img-loading');
-    const done = () => img.classList.remove('lf-img-loading');
+    img._lfRevealTimer = setTimeout(() => {
+      // Re-check at reveal time — image may have finished during the delay.
+      if (!(img.complete && img.naturalWidth > 0)) {
+        img.classList.add('lf-img-loading');
+      }
+    }, LOADING_REVEAL_DELAY);
+    const done = () => {
+      if (img._lfRevealTimer) {
+        clearTimeout(img._lfRevealTimer);
+        img._lfRevealTimer = null;
+      }
+      img.classList.remove('lf-img-loading');
+    };
     img.addEventListener('load', done, { once: true });
     img.addEventListener('error', done, { once: true });
   };
