@@ -173,18 +173,19 @@
     // pushes the country off-centre. Hard-coding the country's geographic
     // centre + a calibrated zoom keeps CH dead-centre at this map size.
     const isMobile = window.matchMedia && window.matchMedia('(max-width: 767px)').matches;
-    const SWISS_CENTER = [8.3, 46.82];
+    const SWISS_CENTER = [8.32, 46.82];
+    const SWISS_MOBILE_ZOOM = 5.5;
     const map = new window.maplibregl.Map({
       container: CFG.mapMountId,
       style: CFG.tileStyle,
       center: isMobile ? SWISS_CENTER : CFG.initialCenter,
-      zoom: isMobile ? 6.6 : CFG.initialZoom,
+      zoom: isMobile ? SWISS_MOBILE_ZOOM : CFG.initialZoom,
       attributionControl: false,
     });
     if (isMobile) {
       // Re-apply after load in case Webflow's reflow shifted the canvas size.
       map.once('load', () => {
-        map.jumpTo({ center: SWISS_CENTER, zoom: 6.6 });
+        map.jumpTo({ center: SWISS_CENTER, zoom: SWISS_MOBILE_ZOOM });
       });
     }
     map.addControl(new window.maplibregl.NavigationControl({ showCompass: false }), 'top-right');
