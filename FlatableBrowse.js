@@ -168,22 +168,23 @@
     const mount = document.getElementById(CFG.mapMountId);
     if (!mount) return null;
 
-    // Mobile map is ~half the desktop width, so the same zoom shows only a
-    // sliver of Switzerland. Use fitBounds on the Switzerland bbox once the
-    // map loads so the whole country is always visible regardless of the
-    // mobile map's actual rendered size.
+    // Mobile uses an explicit centred view rather than fitBounds — fitBounds
+    // pads the Switzerland bbox horizontally on a roughly-square map and
+    // pushes the country off-centre. Hard-coding the country's geographic
+    // centre + a calibrated zoom keeps CH dead-centre at this map size.
     const isMobile = window.matchMedia && window.matchMedia('(max-width: 767px)').matches;
+    const SWISS_CENTER = [8.3, 46.82];
     const map = new window.maplibregl.Map({
       container: CFG.mapMountId,
       style: CFG.tileStyle,
-      center: CFG.initialCenter,
-      zoom: isMobile ? 6 : CFG.initialZoom,
+      center: isMobile ? SWISS_CENTER : CFG.initialCenter,
+      zoom: isMobile ? 6.6 : CFG.initialZoom,
       attributionControl: false,
     });
     if (isMobile) {
+      // Re-apply after load in case Webflow's reflow shifted the canvas size.
       map.once('load', () => {
-        // Switzerland bbox with a small pad so corners aren't on the very edge.
-        map.fitBounds([[5.9, 45.8], [10.5, 47.85]], { padding: 6, animate: false });
+        map.jumpTo({ center: SWISS_CENTER, zoom: 6.6 });
       });
     }
     map.addControl(new window.maplibregl.NavigationControl({ showCompass: false }), 'top-right');
@@ -1388,10 +1389,14 @@
       'section.lfb__main{display:block!important}',
       // Map: sticky below the toolbar, inset to match the card column width.
       // Override Webflow `.lfb__map { min-height: 480px }` so it can shrink.
+      // box-shadow paints 10px of white directly under the map so cards
+      // scrolling past the sticky map vanish under a clean white border
+      // instead of touching the map's bottom edge.
       'aside.lfb__map{position:sticky!important;',
       'top:var(--lf-sticky-map-top,180px)!important;left:auto!important;right:auto!important;',
       'width:calc(100% - 24px)!important;height:28vh!important;min-height:0!important;',
-      'max-height:280px!important;z-index:80!important;margin:0 12px!important}',
+      'max-height:280px!important;z-index:80!important;margin:0 12px!important;',
+      'box-shadow:0 10px 0 0 #fff!important}',
       '#' + CFG.mapMountId + ',.lfb__map-mount{height:100%!important;width:100%!important}',
       // Cards grid: single column, full width. Tight top so the first card
       // sits just below the map instead of after a gap.
