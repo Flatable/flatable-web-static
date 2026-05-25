@@ -1806,10 +1806,9 @@
     if (!map) return;
     ensureSearchOverlayChrome();
     document.body.classList.add('lf-search-overlay-open');
-    // Blur the input so iOS doesn't open the keyboard or zoom on focus — the
-    // overlay flow is for panning the map, not typing.
-    const input = document.getElementById('lfb-search');
-    if (input && input.blur) input.blur();
+    // Keep the input focused so the keyboard opens and the user can type a
+    // city to fly the map there. The iOS zoom-on-focus is already prevented
+    // by the 16px font-size rule on .lfb__search-input.
     // Re-measure now that the toolbar buttons + pill row are hidden so the
     // map sits directly under the (now-shorter) toolbar.
     requestAnimationFrame(updateOverlayMapTop);
