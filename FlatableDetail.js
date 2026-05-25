@@ -125,8 +125,11 @@
   };
 
   // Prepend an emoji span to every detail-page chip exactly once.
+  // Languages and flatmate professions live inside the Household card; they're
+  // factual roster data, not personality tags, so we skip emoji decoration there.
   const decorateChips = () => {
     document.querySelectorAll('.lfg22__chip').forEach((chip) => {
+      if (chip.closest('.lfg22__card--household')) return;
       if (chip.querySelector('.lf-chip__emoji')) return;
       const original = chip.textContent.trim();
       if (!original) return;
