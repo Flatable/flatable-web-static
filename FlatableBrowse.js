@@ -1579,7 +1579,14 @@
       'aside.lfb__map{display:none!important}',
       'body.lf-search-overlay-open .lfb__toolbar #lfb-filters-btn,',
       'body.lf-search-overlay-open .lfb__toolbar #lfb-saved-btn,',
-      'body.lf-search-overlay-open .lfb__toolbar #lfb-sort-btn{display:none!important}',
+      'body.lf-search-overlay-open .lfb__toolbar #lfb-sort-btn,',
+      // While picking a new area, hide the stale pill from the previous search
+      // so the toolbar collapses to just the search input.
+      'body.lf-search-overlay-open #lf-search-pill-row{display:none!important}',
+      // Toolbar must paint above the fixed map so the search input is never
+      // hidden behind the overlay if the dynamic top-measurement runs late.
+      'body.lf-search-overlay-open .lfb__toolbar{z-index:260!important;',
+      'background:#fff!important}',
       'body.lf-search-overlay-open aside.lfb__map{display:block!important;',
       'position:fixed!important;top:var(--lf-search-overlay-map-top,140px)!important;',
       'left:12px!important;right:12px!important;bottom:12px!important;',
@@ -1597,9 +1604,10 @@
       'box-shadow:0 12px 24px rgba(255,94,58,.42);border:0;font-size:16px;cursor:pointer;',
       'font-family:inherit}',
       'body.lf-search-overlay-open .lf-search-action-bar{display:block}',
-      // Close × — top-LEFT of the overlay map; flex-centered glyph.
+      // Close × — top-LEFT of the overlay map; flex-centered glyph, hugged
+      // into the rounded corner of the map card.
       '.lf-search-cancel{display:none;position:fixed;',
-      'top:calc(var(--lf-search-overlay-map-top,140px) + 12px);left:22px;',
+      'top:calc(var(--lf-search-overlay-map-top,140px) + 8px);left:16px;',
       'width:36px;height:36px;border-radius:50%;background:rgba(255,255,255,.95);',
       'border:0;z-index:251;font-size:20px;line-height:1;cursor:pointer;color:#5a3f33;',
       'box-shadow:0 4px 12px rgba(0,0,0,.18);font-family:inherit;padding:0;',
@@ -1778,14 +1786,15 @@
     document.body.appendChild(cancel);
   };
 
-  // Measure the search bar's actual bottom edge (the toolbar shrinks when
-  // overlay opens because the Filters/Saved/Sort buttons are hidden), then
-  // position the map below it. Sets the CSS variable both rules consume.
+  // Measure the toolbar's actual bottom edge (which now collapses to just the
+  // search input when overlay is open — buttons + pill row are hidden), then
+  // position the map 8px below it. Sets the CSS variable both rules consume.
   const updateOverlayMapTop = () => {
-    const search = document.getElementById('lfb-search-wrap');
-    if (!search) return;
-    // Compute the y of the search-wrap's bottom edge in viewport coords.
-    const bottom = Math.round(search.getBoundingClientRect().bottom);
+    const toolbar = document.querySelector('.lfb__toolbar');
+    if (!toolbar) return;
+    // Toolbar bottom in viewport coords. Add an 8px gap so the map sits a
+    // touch under the search bar instead of touching its bottom edge.
+    const bottom = Math.round(toolbar.getBoundingClientRect().bottom) + 8;
     document.documentElement.style.setProperty(
       '--lf-search-overlay-map-top', bottom + 'px'
     );
@@ -1797,8 +1806,12 @@
     if (!map) return;
     ensureSearchOverlayChrome();
     document.body.classList.add('lf-search-overlay-open');
-    // Re-measure now that the toolbar buttons are hidden so the map sits
-    // directly under the (now-shorter) toolbar.
+    // Blur the input so iOS doesn't open the keyboard or zoom on focus — the
+    // overlay flow is for panning the map, not typing.
+    const input = document.getElementById('lfb-search');
+    if (input && input.blur) input.blur();
+    // Re-measure now that the toolbar buttons + pill row are hidden so the
+    // map sits directly under the (now-shorter) toolbar.
     requestAnimationFrame(updateOverlayMapTop);
     // Restore the last-used bounds if any so the user picks up where they left off.
     const start = state.searchBounds || readPersistedSearchArea();
@@ -1811,6 +1824,12 @@
   };
   const closeSearchOverlay = () => {
     document.body.classList.remove('lf-search-overlay-open');
+    // The overlay sits inside the map's `data-lenis-prevent` zone, so tapping
+    // Set Search Area or the × pauses Lenis and never re-fires mouseleave on
+    // touch devices. Re-arm Lenis explicitly so page scroll resumes. This is
+    // independent of any scroll motion — applyAll's anchor pass still owns
+    // the no-jump-to-footer guarantee.
+    releaseLenis();
   };
   // Keep the map top in sync if orientation or viewport changes while open.
   window.addEventListener('resize', () => {
