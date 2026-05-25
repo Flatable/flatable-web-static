@@ -57,13 +57,8 @@
         'color:#fff!important;border-color:transparent!important;display:inline-flex;',
         'align-items:center;gap:6px}',
       '.lfg22__chip .lf-chip__emoji{font-size:1em;line-height:1;flex:0 0 auto}',
-      // Image loading shimmer — neutral light grey so it reads as "loading"
-      // not as an orange box. Only revealed after a 200ms delay (see JS) so
-      // cached/fast loads — common when stepping through the carousel — never
-      // flash a placeholder at all.
-      '@keyframes lf-img-shimmer{0%{background-position:-200% 0}100%{background-position:200% 0}}',
-      '.lf-img-loading{background:linear-gradient(90deg,#e8e8e8 0%,#f4f4f4 50%,#e8e8e8 100%)!important;',
-        'background-size:200% 100%!important;animation:lf-img-shimmer 1.4s ease-in-out infinite}',
+      // Ghost layer used by the cross-fade transition between carousel photos.
+      '.lf-img-ghost{display:block}',
       // Active carousel dash uses brand orange (overrides HeroSlider inline white).
       '.lfh15__photo-dot[aria-current="true"]{',
         'background:linear-gradient(135deg,#ff8b3d,#ff5e3a)!important}',
@@ -609,47 +604,74 @@
     return root;
   };
 
-  // === Image loading state ===
-  // Show the shimmer ONLY for loads that take longer than 200ms. Cached
-  // navigation between carousel photos typically resolves in <100ms, so the
-  // user never sees a flash — matches the Material Design "delay loading
-  // indicators" pattern.
-  const LOADING_REVEAL_DELAY = 200;
-  const applyLoadingShimmer = (img) => {
-    if (!img) return;
-    if (img._lfRevealTimer) {
-      clearTimeout(img._lfRevealTimer);
-      img._lfRevealTimer = null;
-    }
-    if (img.complete && img.naturalWidth > 0) {
-      img.classList.remove('lf-img-loading');
-      return;
-    }
-    img._lfRevealTimer = setTimeout(() => {
-      // Re-check at reveal time — image may have finished during the delay.
-      if (!(img.complete && img.naturalWidth > 0)) {
-        img.classList.add('lf-img-loading');
-      }
-    }, LOADING_REVEAL_DELAY);
-    const done = () => {
-      if (img._lfRevealTimer) {
-        clearTimeout(img._lfRevealTimer);
-        img._lfRevealTimer = null;
-      }
-      img.classList.remove('lf-img-loading');
-    };
-    img.addEventListener('load', done, { once: true });
-    img.addEventListener('error', done, { once: true });
-  };
-
-  // The hero slider rewrites src as the user steps through photos; re-apply
-  // the shimmer on every src change so a slow next-photo fetch is also covered.
+  // === Hero photo cross-fade ===
+  // When the carousel swaps src, hold the previous frame on a "ghost" <img>
+  // layer until the new image has actually decoded, then fade the ghost out.
+  // Result: the viewer never sees the photo container background between
+  // images — old photo stays put until the next one is ready.
   const observeHeroPhoto = () => {
-    const img = document.querySelector('.lfh15__photo-img');
-    if (!img) return;
-    applyLoadingShimmer(img);
-    const obs = new MutationObserver(() => applyLoadingShimmer(img));
-    obs.observe(img, { attributes: true, attributeFilter: ['src'] });
+    const wrap = document.querySelector('.lfh15__photo');
+    const live = wrap?.querySelector('.lfh15__photo-img');
+    if (!wrap || !live) return;
+
+    // Photo container needs to be a positioning context for the ghost overlay.
+    if (getComputedStyle(wrap).position === 'static') wrap.style.position = 'relative';
+    // White fill prevents any peachy page bg from leaking through during paint.
+    wrap.style.backgroundColor = '#fff';
+
+    const ghost = document.createElement('img');
+    ghost.className = 'lf-img-ghost';
+    ghost.alt = '';
+    ghost.setAttribute('aria-hidden', 'true');
+    ghost.style.position = 'absolute';
+    ghost.style.inset = '0';
+    ghost.style.width = '100%';
+    ghost.style.height = '100%';
+    ghost.style.objectFit = getComputedStyle(live).objectFit || 'cover';
+    ghost.style.objectPosition = getComputedStyle(live).objectPosition || 'center';
+    ghost.style.zIndex = '2';
+    ghost.style.pointerEvents = 'none';
+    ghost.style.opacity = '0';
+    ghost.style.transition = 'opacity 260ms ease';
+    wrap.appendChild(ghost);
+
+    let lastSrc = live.getAttribute('src') || live.src;
+
+    const showGhostAs = (src) => {
+      if (!src) return;
+      ghost.style.transition = 'none';
+      ghost.src = src;
+      ghost.style.opacity = '1';
+      // Force a reflow so the next transition reads from opacity:1.
+      void ghost.offsetWidth;
+      ghost.style.transition = 'opacity 260ms ease';
+    };
+
+    const fadeGhostOut = () => {
+      ghost.style.opacity = '0';
+    };
+
+    const obs = new MutationObserver(() => {
+      const newSrc = live.getAttribute('src') || live.src;
+      if (!newSrc || newSrc === lastSrc) return;
+      // Mask the new src behind the previous frame.
+      showGhostAs(lastSrc);
+      lastSrc = newSrc;
+      // Preload via a detached image so we can be sure decoding finished
+      // before fading the ghost — Safari sometimes fires `load` before paint.
+      const probe = new Image();
+      const reveal = () => {
+        if (typeof probe.decode === 'function') {
+          probe.decode().catch(() => {}).then(fadeGhostOut);
+        } else {
+          fadeGhostOut();
+        }
+      };
+      probe.addEventListener('load', reveal, { once: true });
+      probe.addEventListener('error', fadeGhostOut, { once: true });
+      probe.src = newSrc;
+    });
+    obs.observe(live, { attributes: true, attributeFilter: ['src'] });
   };
 
   const wireLightbox = () => {
