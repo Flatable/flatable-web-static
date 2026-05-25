@@ -332,6 +332,13 @@
         'border-radius:14px;padding:14px 18px;text-decoration:none;font-weight:600;font-size:15px;',
         'transition:transform 120ms ease,box-shadow 120ms ease;',
         'flex:1 1 0;min-width:0;max-width:200px;box-sizing:border-box}',
+      // Mobile: stack the two store buttons vertically, each full-width and
+      // matching height, so the modal stays comfortable on small screens.
+      '@media (max-width:767px){',
+        '.lf-apply-modal__buttons{flex-direction:column!important;align-items:stretch!important}',
+        '.lf-apply-modal__btn{flex:0 0 auto!important;max-width:none!important;width:100%!important;',
+          'min-height:64px!important}',
+      '}',
       '.lf-apply-modal__btn:hover{transform:translateY(-1px);box-shadow:0 8px 18px rgba(0,0,0,0.18)}',
       '.lf-apply-modal__btn svg{width:22px;height:22px;flex:0 0 22px;fill:currentColor}',
       '.lf-apply-modal__btn-meta{display:flex;flex-direction:column;align-items:flex-start;line-height:1.1}',

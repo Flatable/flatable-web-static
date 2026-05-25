@@ -1369,17 +1369,18 @@
       // JS sets --lf-sticky-toolbar-top + --lf-sticky-map-top from real
       // measurements so the stack stays correct if the header height changes.
       '@media (max-width:767px){',
-      // Pin the Webflow mobile header at the top so the toolbar and map sit beneath it.
-      '.nav_mobile_wrap{position:sticky!important;top:0!important;z-index:120!important;',
-      'background:#fff!important}',
+      // Header sticky lives in FlatableNavBrowse.js (site-wide so it stays
+      // consistent everywhere). Here we only zero the 16px padding that
+      // .nav_component adds above the header — that buffer was making the
+      // toolbar scroll a few pixels before pinning instead of latching from start.
+      '.nav_component{padding-top:0!important}',
       'section.lfb__main{display:block!important}',
-      // Map: full width, sticky below the toolbar, half the previous height.
-      // Override Webflow's `.lfb__map { min-height: 480px }` so the half-height
-      // mobile map can actually shrink to 20vh.
+      // Map: sticky below the toolbar, inset to match the card column width.
+      // Override Webflow `.lfb__map { min-height: 480px }` so it can shrink.
       'aside.lfb__map{position:sticky!important;',
-      'top:var(--lf-sticky-map-top,180px)!important;left:0!important;',
-      'width:100%!important;height:20vh!important;min-height:0!important;',
-      'max-height:200px!important;z-index:80!important;margin:0!important}',
+      'top:var(--lf-sticky-map-top,180px)!important;left:auto!important;right:auto!important;',
+      'width:calc(100% - 24px)!important;height:28vh!important;min-height:0!important;',
+      'max-height:280px!important;z-index:80!important;margin:0 12px!important}',
       '#' + CFG.mapMountId + ',.lfb__map-mount{height:100%!important;width:100%!important}',
       // Cards grid: single column, full width.
       '.lfb__grid,.w-dyn-list .w-dyn-items{grid-template-columns:1fr!important;',
@@ -1398,7 +1399,17 @@
       'width:100%!important;max-width:100%!important}',
       '.lfb__toolbar #lfb-filters-btn,.lfb__toolbar #lfb-saved-btn,.lfb__toolbar #lfb-sort-btn{',
       'flex:1 1 0!important;order:1!important;justify-content:center!important;',
-      'min-width:0!important;padding:10px 12px!important}',
+      'min-width:0!important;min-height:44px!important;padding:6px 10px!important;',
+      'overflow:hidden!important;text-align:center!important}',
+      // Long sort labels (e.g. "Rent: low to high") wrap inside the narrow
+      // button instead of overflowing. Font shrinks a touch; button height stays.
+      '.lfb__toolbar-btn span{white-space:normal!important;line-height:1.1!important;',
+      'font-size:12px!important;text-align:center!important;display:inline-block!important}',
+      // Sort dropdown — make sure long-press / wheel events on it still allow
+      // the page to scroll. Without `touch-action: pan-y` the absolute menu
+      // sometimes traps vertical scroll on mobile webkit.
+      '.lfb__sp{touch-action:pan-y!important;overscroll-behavior:contain!important;',
+      'max-height:50vh!important;overflow-y:auto!important;', 'right:8px!important;left:auto!important}',
       // Toolbar shield (the fixed-position shim used on desktop) — disable on mobile.
       '.lfb__toolbar-shield{display:none!important}',
       '}'

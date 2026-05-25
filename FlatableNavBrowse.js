@@ -119,13 +119,24 @@
       'li[' + MARKER + '="' + MARKER_VALUE + '"] .button_main_wrap:hover,',
       'li[' + MARKER + '="' + MARKER_VALUE + '"] .button_main_element:hover{',
         'filter:brightness(1.05)}',
-      // === MOBILE (≤767px) — center every entry in the hamburger drawer
-      // (nav links, the Services dropdown toggle, and the Download CTA), and
-      // tint the cloned Browse Flats entry orange to match the desktop pill.
+      // === MOBILE (≤767px) — sticky header (was browse-only, now site-wide
+      // for visual consistency when the hamburger drawer is open), centre every
+      // entry in the drawer, tint the cloned Browse Flats entry orange.
       '@media (max-width:767px){',
-        '.nav_mobile_menu_wrap .nav_links_wrap,.nav_mobile_menu_wrap .nav_actions_wrap{',
+        // Sticky header on every page so the drawer's logo row looks the
+        // same on /browse-flats as on / and other pages.
+        '.nav_mobile_wrap{position:sticky!important;top:0!important;z-index:120!important;',
+          'background:#fff!important}',
+        // Tight gap between Browse Flats and Download (was Webflow default ~80px).
+        '.nav_mobile_menu_wrap .nav_links_wrap{',
           'display:flex!important;flex-direction:column!important;align-items:center!important;',
           'text-align:center!important;width:100%!important;gap:6px!important}',
+        '.nav_mobile_menu_wrap .nav_actions_wrap{',
+          'display:flex!important;flex-direction:column!important;align-items:center!important;',
+          'text-align:center!important;width:100%!important;gap:8px!important;',
+          'margin-top:12px!important;padding-top:0!important}',
+        '.nav_mobile_menu_wrap .nav_buttons_item{margin:0!important;padding:0!important}',
+        '.nav_mobile_menu_wrap .nav_buttons_item .button_main_wrap{margin:0 auto!important}',
         '.nav_mobile_menu_wrap .nav_links_item,.nav_mobile_menu_wrap .nav_buttons_item{',
           'display:flex!important;justify-content:center!important;width:100%!important;text-align:center!important}',
         '.nav_mobile_menu_wrap .nav_links_link,.nav_mobile_menu_wrap .nav_dropdown_toggle{',
