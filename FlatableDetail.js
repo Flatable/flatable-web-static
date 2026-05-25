@@ -67,14 +67,16 @@
       // Brand brighter orange replaces the muted brown on these elements.
       '.lfh15__kicker{color:#ff5e3a!important}',
       '.lfg22__hh-g-icon{color:#ff5e3a!important;fill:#ff5e3a!important}',
-      // Apply CTA now has a white fill with bright orange text + border, so it
-      // matches the Skip button visually while still reading as the primary action.
-      '.lf-bar__apply{background:#fff!important;background-image:none!important;',
-        'color:#ff5e3a!important;border:1.5px solid #ff5e3a!important}',
-      '.lf-bar__apply .lf-bar__apply-icon,.lf-bar__apply span{color:#ff5e3a!important}',
-      // Skip is rendered as transparent by Webflow; force an explicit white
-      // fill so it matches Apply (and stays opaque if the page bg ever changes).
+      // Apply is the primary CTA: orange-filled background, white text/icon.
+      '.lf-bar__apply{background:linear-gradient(135deg,#ff8b3d,#ff5e3a)!important;',
+        'background-image:linear-gradient(135deg,#ff8b3d,#ff5e3a)!important;',
+        'color:#fff!important;border:1.5px solid transparent!important}',
+      '.lf-bar__apply .lf-bar__apply-icon,.lf-bar__apply span{color:#fff!important}',
+      // Skip is the secondary CTA: white fill, default text.
       '.lf-bar__skip{background:#fff!important;background-image:none!important}',
+      // The whole sticky bar wrapper goes white so the Skip pill no longer
+      // sits on top of a cream tint (which broke the white-on-white intent).
+      '.lf-bar-1-2{background:#fff!important;background-image:none!important}',
       // Lightbox — fullscreen photo viewer.
       '.lf-photo-cursor{cursor:zoom-in}',
       '.lf-lightbox{position:fixed;inset:0;background:rgba(8,4,2,0.92);display:none;',
