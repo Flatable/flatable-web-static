@@ -224,37 +224,56 @@
     });
   };
 
-  // === Tag emoji map (must stay in sync with FlatableDetail.js) ===
+  // === Tag emoji map ===
+  // Sourced from the canonical Flutter list in `lib/v2/core/models/emoji_model.dart`
+  // so the web stays in sync with the app. Unknown values intentionally fall through
+  // with no emoji (cleaner than seeing the same fallback on half the chips).
+  // Mirrored in FlatableDetail.js — keep both copies aligned.
   const TAG_EMOJI = {
-    'wi-fi': '📶', 'wifi': '📶', 'parking': '🚗', 'laundry room': '🧺',
-    'balcony': '☀️', 'garden': '🌿', 'smoking allowed': '🚬', 'no smoking': '🚭',
-    'dishwasher': '🍽️', 'elevator': '🛗', 'pet allowed': '🐾', 'pets allowed': '🐾',
-    'gym': '🏋️', 'pool': '🏊', 'air conditioning': '❄️', 'heating': '🔥',
-    'furnished': '🛋️', 'washer': '🧺', 'dryer': '🌬️', 'tv': '📺',
-    'workspace': '💻', 'bike storage': '🚲', 'storage': '📦', 'fireplace': '🪵',
-    'rooftop': '🏙️', 'terrace': '🌇', 'wheelchair accessible': '♿',
-    'calm weekdays, social weekends': '🌗', 'calm weekdays': '🌅',
-    'social weekends': '🎉', 'quiet & peaceful': '🤫', 'quiet': '🤫',
-    'party-friendly': '🥳', 'lgbtq+ friendly': '🏳️‍🌈', 'study-focused': '📚',
-    'creative': '🎨', 'fitness': '💪', 'outdoorsy': '🏞️', 'minimalist': '🧘',
-    'cozy': '🛋️', 'modern': '✨', 'family-friendly': '👨‍👩‍👧',
-    'eco-friendly': '🌱', 'student-friendly': '🎓',
-    'easy-going': '😎', 'easygoing': '😎', 'tidy': '✨', 'reliable': '🤝',
-    'flexible schedule': '🕐', 'pet lover': '🐾', 'cooking enthusiast': '🍳',
-    'early bird': '🌅', 'night owl': '🦉', 'introvert': '🤓', 'extrovert': '🎤',
-    'organized': '📋', 'foodie': '🍴', 'adventurous': '🧗', 'sporty': '⚽',
-    'bookworm': '📖', 'music lover': '🎵', 'gamer': '🎮', 'traveler': '✈️',
-    'spontaneous': '💫', 'punctual': '⏰', 'communicative': '💬'
+    // socialEnergy
+    'social butterfly': '🦋', 'outgoing': '🎤', 'more introverted': '🤓',
+    'quiet thinker': '🧠', 'easy-going': '😎',
+    // cleanlinessOrder
+    'a bit messy': '🌀', 'clean freak': '🧼', 'tidy': '✨', "doesn't mind chaos": '🌪️',
+    // routine
+    'out most days': '🚶', 'night owl': '🦉', 'flexible schedule': '🕐',
+    'early bird': '🌅', 'work-from-home': '💻',
+    // lifestyle
+    'active': '💪', 'chill': '🌴', 'foodie': '🍴', 'party-friendly': '🥳',
+    'eco-conscious': '🌱', 'pet lover': '🐾',
+    // personalityTone
+    'calm': '🌙', 'reliable': '🤝', 'spontaneous': '💫', 'creative': '🎨',
+    'organized': '📋', 'adventurous': '🧗',
+    // socialDynamic
+    'everyone does their thing': '🍃', 'like a small family': '👨‍👩‍👧',
+    'open for deep talks': '💬', 'chill but connected': '☕',
+    // atmosphere
+    'quiet & peaceful': '🤫', 'fun & lively': '🎉',
+    'calm weekdays, social weekends': '🌗',
+    // Webflow sometimes splits the atmosphere value at the comma into two chips.
+    'calm weekdays': '🌅', 'social weekends': '🎉',
+    // sharedActivities
+    'shared dinners': '🍽️', 'movie nights': '🎬', 'yoga or workouts': '🧘',
+    'occasional drinks': '🍷', 'weekend adventures': '🏞️',
+    // boundariesHabits
+    'non-smoker': '🚭', 'pet-friendly': '🐶', 'visitors welcome': '👋',
+    'respectful of space': '🙏', 'clean shared areas': '🧹',
+    // interests
+    'food': '🍴', 'travel': '✈️', 'movies': '🎬', 'diy': '🔨', 'gardening': '🌷',
+    'art': '🎨', 'photography': '📷', 'sports': '⚽', 'music': '🎵',
+    'cooking': '🍳', 'reading': '📖', 'dancing': '💃', 'fitness': '🏋️',
+    'coding': '👨‍💻', 'gaming': '🎮',
+    // featuresAmenities
+    'wi-fi': '📶', 'garden': '🌿', 'balcony': '☀️', 'parking': '🚗',
+    'laundry room': '🧺', 'dishwasher': '🍽️', 'smoking allowed': '🚬',
+    'pets allowed': '🐾'
   };
   const emojiFor = (text) => {
     const key = (text || '').trim().toLowerCase();
     if (!key) return null;
-    if (TAG_EMOJI[key]) return TAG_EMOJI[key];
-    const first = key.split(/[\s,]+/)[0];
-    return TAG_EMOJI[first] || '✨';
+    return TAG_EMOJI[key] || null;
   };
-  // Walk every browse card chip once and prepend an emoji span.
-  // The chips are written by FlatableChipSplitter; we re-run after it on boot.
+  // Walk every browse card chip and prepend an emoji span. Idempotent.
   const decorateCardChips = () => {
     document.querySelectorAll('.lfb__card__tag').forEach((chip) => {
       if (chip.querySelector('.lf-chip__emoji')) return;
@@ -266,6 +285,15 @@
       span.className = 'lf-chip__emoji';
       span.textContent = emoji;
       chip.insertBefore(span, chip.firstChild);
+    });
+  };
+  // FlatableChipSplitter runs after our boot and may rewrite chip children,
+  // wiping our emoji spans. Watch the tags container and re-decorate on any
+  // child mutation so emojis stick regardless of ordering.
+  const observeCardChips = () => {
+    const obs = new MutationObserver(() => decorateCardChips());
+    document.querySelectorAll('.lfb__card__tags-track, .lfb__card__tags-wrap').forEach((root) => {
+      obs.observe(root, { childList: true, subtree: true, characterData: true });
     });
   };
 
@@ -1347,8 +1375,12 @@
       wireCardLinks(data);
       wireClickScroll(data);
       // The chip splitter runs at body bottom and writes chips into cards.
-      // Decorate after a microtask so we run after its initial pass.
-      requestAnimationFrame(decorateCardChips);
+      // Decorate after a microtask so we run after its initial pass, then
+      // start observing for any later rewrites that would drop our emoji spans.
+      requestAnimationFrame(() => {
+        decorateCardChips();
+        observeCardChips();
+      });
 
       const onChange = () => applyAll(map, data, state);
       window.LfbApply = onChange;

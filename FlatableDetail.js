@@ -41,9 +41,13 @@
       '.lfg22__hh-fact{min-width:0}',
       // Vertically center the gender icon/number triplets — they were sitting on the
       // top border because the row defaults to align-items: flex-start.
+      // Gender row mirrors the height of the sibling h6 values (Flatmates, Age
+      // range) so the icon+number baseline aligns with the rest of the row.
+      // Note: NO line-height override on the inner h6 — that previously squashed
+      // it to 17px while siblings were 22.1px, pushing this column up by ~5px.
       '.lfg22__hh-gender{display:flex;align-items:center;gap:14px}',
-      '.lfg22__hh-g{display:inline-flex;align-items:center;gap:6px;line-height:1}',
-      '.lfg22__hh-g-num,.lfg22__hh-g-numv{margin:0;display:inline-flex;align-items:center;line-height:1}',
+      '.lfg22__hh-g{display:inline-flex;align-items:center;gap:6px}',
+      '.lfg22__hh-g-num,.lfg22__hh-g-numv{margin:0;display:inline-flex;align-items:center}',
       // Tenancy badge — orange outline only, no fill.
       '.lfh15__badge{background:transparent!important;background-color:transparent!important;',
         'border:1px solid #ff5e3a!important;color:#ff5e3a!important;font-weight:600}',
@@ -60,6 +64,9 @@
       '.lf-bar__apply{background:#fff!important;background-image:none!important;',
         'color:#ff5e3a!important;border:1.5px solid #ff5e3a!important}',
       '.lf-bar__apply .lf-bar__apply-icon,.lf-bar__apply span{color:#ff5e3a!important}',
+      // Skip is rendered as transparent by Webflow; force an explicit white
+      // fill so it matches Apply (and stays opaque if the page bg ever changes).
+      '.lf-bar__skip{background:#fff!important;background-image:none!important}',
       // Lightbox — fullscreen photo viewer.
       '.lf-photo-cursor{cursor:zoom-in}',
       '.lf-lightbox{position:fixed;inset:0;background:rgba(8,4,2,0.92);display:none;',
@@ -89,39 +96,41 @@
     document.head.appendChild(s);
   };
 
-  // === Emoji map for tag chips (shared across vibes / traits / amenities) ===
-  // Keys are lowercase chip text; lookups normalise trim+collapse spaces.
+  // === Emoji map for tag chips ===
+  // Canonical list from `lib/v2/core/models/emoji_model.dart`. Unknown values
+  // fall through with no emoji (cleaner than identical fallbacks).
+  // Mirrored in FlatableBrowse.js — keep both copies aligned.
   const TAG_EMOJI = {
-    // Amenities
-    'wi-fi': '📶', 'wifi': '📶', 'parking': '🚗', 'laundry room': '🧺',
-    'balcony': '☀️', 'garden': '🌿', 'smoking allowed': '🚬', 'no smoking': '🚭',
-    'dishwasher': '🍽️', 'elevator': '🛗', 'pet allowed': '🐾', 'pets allowed': '🐾',
-    'gym': '🏋️', 'pool': '🏊', 'air conditioning': '❄️', 'heating': '🔥',
-    'furnished': '🛋️', 'washer': '🧺', 'dryer': '🌬️', 'tv': '📺',
-    'workspace': '💻', 'bike storage': '🚲', 'storage': '📦', 'fireplace': '🪵',
-    'rooftop': '🏙️', 'terrace': '🌇', 'wheelchair accessible': '♿',
-    // Vibes
-    'calm weekdays, social weekends': '🌗', 'calm weekdays': '🌅',
-    'social weekends': '🎉', 'quiet & peaceful': '🤫', 'quiet': '🤫',
-    'party-friendly': '🥳', 'lgbtq+ friendly': '🏳️‍🌈', 'study-focused': '📚',
-    'creative': '🎨', 'fitness': '💪', 'outdoorsy': '🏞️', 'minimalist': '🧘',
-    'cozy': '🛋️', 'modern': '✨', 'family-friendly': '👨‍👩‍👧',
-    'eco-friendly': '🌱', 'student-friendly': '🎓',
-    // Traits
-    'easy-going': '😎', 'easygoing': '😎', 'tidy': '✨', 'reliable': '🤝',
-    'flexible schedule': '🕐', 'pet lover': '🐾', 'cooking enthusiast': '🍳',
-    'early bird': '🌅', 'night owl': '🦉', 'introvert': '🤓', 'extrovert': '🎤',
-    'organized': '📋', 'foodie': '🍴', 'adventurous': '🧗', 'sporty': '⚽',
-    'bookworm': '📖', 'music lover': '🎵', 'gamer': '🎮', 'traveler': '✈️',
-    'spontaneous': '💫', 'punctual': '⏰', 'communicative': '💬'
+    'social butterfly': '🦋', 'outgoing': '🎤', 'more introverted': '🤓',
+    'quiet thinker': '🧠', 'easy-going': '😎',
+    'a bit messy': '🌀', 'clean freak': '🧼', 'tidy': '✨', "doesn't mind chaos": '🌪️',
+    'out most days': '🚶', 'night owl': '🦉', 'flexible schedule': '🕐',
+    'early bird': '🌅', 'work-from-home': '💻',
+    'active': '💪', 'chill': '🌴', 'foodie': '🍴', 'party-friendly': '🥳',
+    'eco-conscious': '🌱', 'pet lover': '🐾',
+    'calm': '🌙', 'reliable': '🤝', 'spontaneous': '💫', 'creative': '🎨',
+    'organized': '📋', 'adventurous': '🧗',
+    'everyone does their thing': '🍃', 'like a small family': '👨‍👩‍👧',
+    'open for deep talks': '💬', 'chill but connected': '☕',
+    'quiet & peaceful': '🤫', 'fun & lively': '🎉',
+    'calm weekdays, social weekends': '🌗',
+    'calm weekdays': '🌅', 'social weekends': '🎉',
+    'shared dinners': '🍽️', 'movie nights': '🎬', 'yoga or workouts': '🧘',
+    'occasional drinks': '🍷', 'weekend adventures': '🏞️',
+    'non-smoker': '🚭', 'pet-friendly': '🐶', 'visitors welcome': '👋',
+    'respectful of space': '🙏', 'clean shared areas': '🧹',
+    'food': '🍴', 'travel': '✈️', 'movies': '🎬', 'diy': '🔨', 'gardening': '🌷',
+    'art': '🎨', 'photography': '📷', 'sports': '⚽', 'music': '🎵',
+    'cooking': '🍳', 'reading': '📖', 'dancing': '💃', 'fitness': '🏋️',
+    'coding': '👨‍💻', 'gaming': '🎮',
+    'wi-fi': '📶', 'garden': '🌿', 'balcony': '☀️', 'parking': '🚗',
+    'laundry room': '🧺', 'dishwasher': '🍽️', 'smoking allowed': '🚬',
+    'pets allowed': '🐾'
   };
   const emojiFor = (text) => {
     const key = (text || '').trim().toLowerCase();
     if (!key) return null;
-    if (TAG_EMOJI[key]) return TAG_EMOJI[key];
-    // Try a single-word fallback (e.g. "Wi-Fi 6" → "wi-fi").
-    const first = key.split(/[\s,]+/)[0];
-    return TAG_EMOJI[first] || '✨';
+    return TAG_EMOJI[key] || null;
   };
 
   // Prepend an emoji span to every detail-page chip exactly once.
