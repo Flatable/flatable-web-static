@@ -56,6 +56,26 @@
     });
 
     downloadLi.parentNode.insertBefore(clone, downloadLi);
+    injectStyles();
+  }
+
+  // Orange brand fill for Browse Flats + breathing room between nav buttons.
+  // The gradient matches the map marker hover pill so the site reads consistently.
+  function injectStyles() {
+    if (document.getElementById('lf-nav-browse-css')) return;
+    var s = document.createElement('style');
+    s.id = 'lf-nav-browse-css';
+    s.textContent = [
+      'li[' + MARKER + '="' + MARKER_VALUE + '"]{margin-right:10px}',
+      'li[' + MARKER + '="' + MARKER_VALUE + '"] .button_main_wrap{',
+        'background:linear-gradient(135deg,#ff8b3d,#ff5e3a)!important;',
+        'border-color:transparent!important;color:#fff!important}',
+      'li[' + MARKER + '="' + MARKER_VALUE + '"] .button_main_text,',
+      'li[' + MARKER + '="' + MARKER_VALUE + '"] .button_eye_text{color:#fff!important}',
+      'li[' + MARKER + '="' + MARKER_VALUE + '"] .button_main_wrap:hover{',
+        'filter:brightness(1.05)}'
+    ].join('\n');
+    document.head.appendChild(s);
   }
 
   if (document.readyState === 'loading') {

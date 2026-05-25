@@ -82,8 +82,13 @@
   };
 
   const parseNum = (str) => {
-    const m = (str || '').match(/(\d[\d'']*)/);
-    return m ? parseInt(m[0].replace(/['']/g, ''), 10) : NaN;
+    if (!str) return NaN;
+    // Strip every thousands-separator variant the CMS might emit before matching:
+    // ASCII apostrophe, U+2019 right single-quote (Swiss CHF), commas, thin spaces.
+    // Without this, "CHF 2'345" parses as `2` because U+2019 breaks the digit run.
+    const cleaned = String(str).replace(/[’',\s]/g, '');
+    const m = cleaned.match(/(-?\d+)/);
+    return m ? parseInt(m[0], 10) : NaN;
   };
 
   const parseDate = (str) => {
@@ -248,13 +253,30 @@
   };
 
   // Wire the Saved toolbar toggle. Active state mirrors `state.savedOnly`.
+  // After the toggle flips, scroll the results column back to the top so the
+  // user sees the first saved flat instead of landing at the last row.
+  const scrollResultsToTop = () => {
+    const grid = document.querySelector(CFG.gridSelector);
+    if (!grid) return;
+    const r = grid.getBoundingClientRect();
+    // Account for the fixed toolbar above the results so the first row isn't tucked under it.
+    const offset = (CFG.toolbarTopOffset || 96) + 16;
+    const y = window.scrollY + r.top - offset;
+    window.scrollTo({ top: Math.max(0, y), behavior: 'smooth' });
+  };
   const wireSavedToggle = (state, applyFn) => {
     const btn = document.getElementById('lfb-saved-btn');
     if (!btn) return;
-    btn.addEventListener('click', () => {
+    btn.addEventListener('click', (e) => {
+      // Defensive: this element is a <div role="button"> — stop bubbling so
+      // no ancestor link/click handler can swallow the event and trigger a
+      // hash-jump (root cause hunt for the first-click footer jump).
+      e.preventDefault();
+      e.stopPropagation();
       state.savedOnly = !state.savedOnly;
       btn.classList.toggle('is-active', state.savedOnly);
       if (applyFn) applyFn();
+      scrollResultsToTop();
     });
   };
 
@@ -367,11 +389,20 @@
         d.marker.getElement().style.display = passesFilters ? '' : 'none';
       }
     });
+    // Reorder so saved flats walk first when the user uses Skip on a detail page.
+    // Within each bucket (saved / unsaved) we preserve the original applyAll order
+    // so the user still sees the same on-page sequence.
+    const orderedSlugs = visibleSlugs.slice().sort((a, b) => {
+      const aSaved = SAVED.has(a) ? 0 : 1;
+      const bSaved = SAVED.has(b) ? 0 : 1;
+      if (aSaved !== bSaved) return aSaved - bSaved;
+      return visibleSlugs.indexOf(a) - visibleSlugs.indexOf(b);
+    });
     // Persist the ordered slug list so the detail page's Skip button can advance
-    // through the same browse result set the user just saw.
+    // through the same browse result set the user just saw (saved flats first).
     try {
       localStorage.setItem('flatable.browseList', JSON.stringify({
-        slugs: visibleSlugs,
+        slugs: orderedSlugs,
         ts: Date.now()
       }));
     } catch (e) { /* localStorage unavailable; skip persistence */ }

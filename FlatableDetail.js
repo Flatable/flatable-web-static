@@ -168,6 +168,8 @@
   const PLAY_STORE_URL = 'https://play.google.com/store/apps/details?id=com.flatable';
   const APPLE_SVG_PATH = 'M16.365 1.43c0 1.14-.42 2.21-1.14 3.03-.86.97-2.27 1.71-3.45 1.62-.15-1.14.42-2.34 1.14-3.09.81-.86 2.24-1.49 3.45-1.56zM20.84 17.21c-.6 1.41-.89 2.04-1.66 3.28-1.07 1.74-2.58 3.91-4.45 3.93-1.66.02-2.08-1.08-4.33-1.07-2.25.01-2.71 1.09-4.37 1.07-1.87-.02-3.3-1.98-4.37-3.72-2.99-4.86-3.31-10.56-1.46-13.59 1.31-2.15 3.39-3.41 5.34-3.41 1.99 0 3.24 1.09 4.89 1.09 1.6 0 2.57-1.09 4.87-1.09 1.74 0 3.58.95 4.88 2.59-4.3 2.36-3.6 8.48.66 10.92z';
   const PLAY_SVG_PATH = 'M3.6 1.7c-.4.4-.6.9-.6 1.5v17.6c0 .6.2 1.1.6 1.5l9.7-10.3L3.6 1.7zm10.7 11.4 2.6 2.7-11.6 6.6 9-9.3zm0-2.2-9-9.3 11.6 6.6-2.6 2.7zm6.3 1.1L17.8 14l-2.7-2.9 2.7-2.9 2.8 1.6c.9.5.9 1.6 0 2.1z';
+  const COUNTDOWN_START = 3;
+  const COUNTDOWN_TICK_MS = 1000;
 
   const detectPlatform = () => {
     const ua = navigator.userAgent || '';
@@ -185,14 +187,15 @@
         'display:none;align-items:center;justify-content:center;z-index:9998;',
         'opacity:0;transition:opacity 180ms ease}',
       '.lf-apply-modal__backdrop.is-open{display:flex;opacity:1}',
-      '.lf-apply-modal{background:#fff;border-radius:24px;max-width:440px;width:calc(100% - 32px);',
-        'padding:32px 28px 28px;box-shadow:0 24px 64px rgba(40,12,4,0.25);',
+      '.lf-apply-modal{background:#fff;border-radius:24px;max-width:480px;width:calc(100% - 32px);',
+        'padding:36px 32px 24px;box-shadow:0 24px 64px rgba(40,12,4,0.25);',
         'transform:translateY(8px);transition:transform 220ms ease;z-index:9999;text-align:center;',
         'font-family:inherit;position:relative}',
       '.lf-apply-modal__backdrop.is-open .lf-apply-modal{transform:translateY(0)}',
-      '.lf-apply-modal__title{font-size:24px;font-weight:700;margin:0 0 8px;color:#231510}',
-      '.lf-apply-modal__sub{font-size:15px;line-height:1.45;margin:0 0 24px;color:#5a3f33}',
-      '.lf-apply-modal__buttons{display:flex;gap:12px;justify-content:center;flex-wrap:wrap}',
+      '.lf-apply-modal__title{font-size:26px;font-weight:700;line-height:1.2;margin:0 0 12px;color:#231510}',
+      '.lf-apply-modal__sub{font-size:15px;line-height:1.5;margin:0 0 24px;color:#5a3f33}',
+      '.lf-apply-modal__sub strong{color:#ff5e3a;font-variant-numeric:tabular-nums}',
+      '.lf-apply-modal__buttons{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin-bottom:16px}',
       '.lf-apply-modal__btn{display:inline-flex;align-items:center;gap:8px;background:#000;color:#fff;',
         'border-radius:14px;padding:14px 18px;text-decoration:none;font-weight:600;font-size:15px;',
         'transition:transform 120ms ease,box-shadow 120ms ease}',
@@ -203,7 +206,17 @@
       '.lf-apply-modal__btn-meta-lg{font-size:16px;font-weight:700}',
       '.lf-apply-modal__close{position:absolute;top:14px;right:16px;background:none;border:0;',
         'font-size:24px;line-height:1;color:#a17260;cursor:pointer;padding:4px 8px}',
-      '.lf-apply-modal__close:hover{color:#231510}'
+      '.lf-apply-modal__close:hover{color:#231510}',
+      '.lf-apply-modal__disclaimer{font-size:11px;line-height:1.4;color:#9a8275;margin:0}',
+      // Hero heart save toggle (detail page).
+      '.lf-hero-save{position:absolute;top:16px;right:16px;width:44px;height:44px;border-radius:50%;',
+        'background:rgba(255,255,255,0.9);border:0;display:inline-flex;align-items:center;justify-content:center;',
+        'cursor:pointer;z-index:5;color:#5a3f33;backdrop-filter:blur(6px);',
+        'box-shadow:0 4px 12px rgba(20,12,8,0.18);transition:background 160ms ease,color 160ms ease,transform 120ms ease}',
+      '.lf-hero-save:hover{transform:scale(1.06)}',
+      '.lf-hero-save.is-saved{background:linear-gradient(135deg,#ff8b3d,#ff5e3a);color:#fff}',
+      '.lf-hero-save svg{width:22px;height:22px}',
+      '.lf-hero-save.is-saved svg{fill:#fff;stroke:#fff}'
     ].join('\n');
     document.head.appendChild(css);
   };
@@ -241,6 +254,8 @@
     return a;
   };
 
+  // Modal state lives on the backdrop element so reopens cancel any leftover
+  // countdown from a previous open (e.g. user closed mid-countdown).
   const buildApplyModal = () => {
     const existing = document.getElementById('lf-apply-modal');
     if (existing) return existing;
@@ -264,25 +279,33 @@
     const title = document.createElement('h2');
     title.id = 'lf-apply-modal-title';
     title.className = 'lf-apply-modal__title';
-    title.textContent = 'Apply in the Flatable app';
+    title.textContent = 'One match away from your new home';
 
     const sub = document.createElement('p');
+    sub.id = 'lf-apply-modal-sub';
     sub.className = 'lf-apply-modal__sub';
-    sub.textContent = 'Applications happen in the Flatable mobile app. Install it to message this flat’s tenants and apply.';
 
     const buttons = document.createElement('div');
     buttons.className = 'lf-apply-modal__buttons';
     buttons.appendChild(buildStoreButton(APP_STORE_URL, APPLE_SVG_PATH, 'Download on the', 'App Store'));
     buttons.appendChild(buildStoreButton(PLAY_STORE_URL, PLAY_SVG_PATH, 'Get it on', 'Google Play'));
 
+    const disclaimer = document.createElement('p');
+    disclaimer.className = 'lf-apply-modal__disclaimer';
+    disclaimer.textContent = 'The webapp is in development and will be published soon.';
+
     modal.appendChild(closeBtn);
     modal.appendChild(title);
     modal.appendChild(sub);
     modal.appendChild(buttons);
+    modal.appendChild(disclaimer);
     backdrop.appendChild(modal);
     document.body.appendChild(backdrop);
 
-    const close = () => backdrop.classList.remove('is-open');
+    const close = () => {
+      backdrop.classList.remove('is-open');
+      stopCountdown(backdrop);
+    };
     closeBtn.addEventListener('click', close);
     backdrop.addEventListener('click', (e) => { if (e.target === backdrop) close(); });
     document.addEventListener('keydown', (e) => { if (e.key === 'Escape') close(); });
@@ -290,9 +313,53 @@
     return backdrop;
   };
 
+  const stopCountdown = (backdrop) => {
+    if (backdrop._lfCountdownTimer) {
+      clearInterval(backdrop._lfCountdownTimer);
+      backdrop._lfCountdownTimer = null;
+    }
+  };
+
+  const renderSubLine = (sub, secondsLeft, platform) => {
+    while (sub.firstChild) sub.removeChild(sub.firstChild);
+    sub.appendChild(document.createTextNode('Apply for this flat on Flatable. '));
+    if (secondsLeft > 0 && platform !== 'desktop') {
+      sub.appendChild(document.createTextNode('You will be redirected in '));
+      const num = document.createElement('strong');
+      num.textContent = String(secondsLeft) + '…';
+      sub.appendChild(num);
+    } else if (platform === 'desktop') {
+      sub.appendChild(document.createTextNode('Open Flatable on iOS or Android ↓'));
+    } else {
+      sub.appendChild(document.createTextNode('Opening the store…'));
+    }
+  };
+
+  const startCountdown = (backdrop) => {
+    const platform = detectPlatform();
+    const sub = backdrop.querySelector('#lf-apply-modal-sub');
+    if (!sub) return;
+    let n = COUNTDOWN_START;
+    renderSubLine(sub, n, platform);
+    stopCountdown(backdrop);
+    if (platform === 'desktop') return;
+    backdrop._lfCountdownTimer = setInterval(() => {
+      n -= 1;
+      if (n <= 0) {
+        stopCountdown(backdrop);
+        renderSubLine(sub, 0, platform);
+        const target = platform === 'ios' ? APP_STORE_URL : PLAY_STORE_URL;
+        window.location.href = target;
+        return;
+      }
+      renderSubLine(sub, n, platform);
+    }, COUNTDOWN_TICK_MS);
+  };
+
   const openApplyModal = () => {
     const m = buildApplyModal();
     m.classList.add('is-open');
+    startCountdown(m);
   };
 
   const wireApplyButton = () => {
@@ -300,17 +367,76 @@
     if (!apply) return;
     apply.addEventListener('click', (e) => {
       e.preventDefault();
-      const platform = detectPlatform();
-      if (platform === 'ios') {
-        window.location.href = APP_STORE_URL;
-        return;
-      }
-      if (platform === 'android') {
-        window.location.href = PLAY_STORE_URL;
-        return;
-      }
       openApplyModal();
     });
+  };
+
+  // === 7b. Hero heart — toggles the same localStorage saved-set as browse cards ===
+  const SAVED_KEY = 'flatable.savedFlats';
+  const HEART_OUTLINE = 'M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78L12 21.23l8.84-8.84a5.5 5.5 0 0 0 0-7.78z';
+
+  const readSaved = () => {
+    try {
+      const raw = localStorage.getItem(SAVED_KEY);
+      if (!raw) return new Set();
+      const arr = JSON.parse(raw);
+      return Array.isArray(arr) ? new Set(arr) : new Set();
+    } catch (e) {
+      return new Set();
+    }
+  };
+  const writeSaved = (set) => {
+    try { localStorage.setItem(SAVED_KEY, JSON.stringify(Array.from(set))); } catch (e) { /* */ }
+  };
+
+  const buildHeroHeart = () => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'lf-hero-save';
+    btn.setAttribute('aria-label', 'Save this flat');
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('viewBox', '0 0 24 24');
+    svg.setAttribute('fill', 'none');
+    svg.setAttribute('stroke', 'currentColor');
+    svg.setAttribute('stroke-width', '2');
+    svg.setAttribute('stroke-linecap', 'round');
+    svg.setAttribute('stroke-linejoin', 'round');
+    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    path.setAttribute('d', HEART_OUTLINE);
+    svg.appendChild(path);
+    btn.appendChild(svg);
+    return btn;
+  };
+
+  const wireHeroHeart = () => {
+    const hero = document.querySelector('.lfh15') || document.querySelector('.lfh15__inner');
+    if (!hero) return;
+    if (hero.querySelector('.lf-hero-save')) return;
+    const slug = currentSlug();
+    if (!slug) return;
+
+    // The hero must be a positioning context so absolute-positioned heart anchors correctly.
+    if (getComputedStyle(hero).position === 'static') hero.style.position = 'relative';
+
+    const btn = buildHeroHeart();
+    const saved = readSaved();
+    if (saved.has(slug)) btn.classList.add('is-saved');
+
+    btn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const set = readSaved();
+      if (set.has(slug)) {
+        set.delete(slug);
+        btn.classList.remove('is-saved');
+      } else {
+        set.add(slug);
+        btn.classList.add('is-saved');
+      }
+      writeSaved(set);
+    });
+
+    hero.appendChild(btn);
   };
 
   // === 8. Skip — advance through the persisted browse list ===
@@ -361,6 +487,7 @@
     handleHousehold();
     wireApplyButton();
     wireSkipButton();
+    wireHeroHeart();
   };
 
   if (document.readyState === 'loading') {
