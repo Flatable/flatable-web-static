@@ -1538,15 +1538,22 @@
       '#lfb-toolbar-spacer{display:none!important;height:0!important}',
       // === Map hidden by default. Opened as a fullscreen overlay by the
       // search-area flow (tap search input → set bounds → close).
+      // While the overlay is open, the toolbar buttons (Filters/Saved/Sort)
+      // are hidden so the search input sits alone at the top and the map
+      // begins immediately below it with a card-style border.
       'aside.lfb__map{display:none!important}',
+      'body.lf-search-overlay-open .lfb__toolbar #lfb-filters-btn,',
+      'body.lf-search-overlay-open .lfb__toolbar #lfb-saved-btn,',
+      'body.lf-search-overlay-open .lfb__toolbar #lfb-sort-btn{display:none!important}',
       'body.lf-search-overlay-open aside.lfb__map{display:block!important;',
-      'position:fixed!important;top:var(--lf-sticky-toolbar-top,80px)!important;',
-      'left:0!important;right:0!important;bottom:0!important;',
-      'width:100vw!important;height:calc(100vh - var(--lf-sticky-toolbar-top,80px))!important;',
+      'position:fixed!important;top:var(--lf-search-overlay-map-top,140px)!important;',
+      'left:12px!important;right:12px!important;bottom:12px!important;',
+      'width:auto!important;height:auto!important;',
       'max-height:none!important;min-height:0!important;',
-      'z-index:200!important;margin:0!important;box-shadow:none!important}',
+      'border:1px solid #ece8df!important;border-radius:16px!important;overflow:hidden!important;',
+      'z-index:200!important;margin:0!important;box-shadow:0 10px 30px rgba(0,0,0,.12)!important}',
       'body.lf-search-overlay-open .lfb__map-mount,',
-      'body.lf-search-overlay-open #lfb-map-leaflet{height:100%!important}',
+      'body.lf-search-overlay-open #lfb-map-leaflet{height:100%!important;border-radius:16px!important;overflow:hidden!important}',
       // Set Search Area button — sticky bottom of overlay.
       '.lf-search-action-bar{display:none;position:fixed;bottom:24px;left:50%;',
       'transform:translateX(-50%);background:linear-gradient(135deg,#ff8b3d,#ff5e3a);',
@@ -1554,13 +1561,14 @@
       'box-shadow:0 12px 24px rgba(255,94,58,.42);border:0;font-size:16px;cursor:pointer;',
       'font-family:inherit}',
       'body.lf-search-overlay-open .lf-search-action-bar{display:block}',
-      // Close × top-right.
+      // Close × — flex-centered glyph so it sits dead-centre in the circle.
       '.lf-search-cancel{display:none;position:fixed;',
-      'top:calc(var(--lf-sticky-toolbar-top,80px) + 12px);right:16px;',
-      'width:40px;height:40px;border-radius:50%;background:rgba(255,255,255,.95);',
-      'border:0;z-index:251;font-size:22px;cursor:pointer;',
-      'box-shadow:0 4px 12px rgba(0,0,0,.18);font-family:inherit;line-height:1}',
-      'body.lf-search-overlay-open .lf-search-cancel{display:block}',
+      'top:calc(var(--lf-search-overlay-map-top,140px) + 12px);right:22px;',
+      'width:36px;height:36px;border-radius:50%;background:rgba(255,255,255,.95);',
+      'border:0;z-index:251;font-size:20px;line-height:1;cursor:pointer;color:#5a3f33;',
+      'box-shadow:0 4px 12px rgba(0,0,0,.18);font-family:inherit;padding:0;',
+      'align-items:center;justify-content:center}',
+      'body.lf-search-overlay-open .lf-search-cancel{display:flex}',
       // Pill below search input when bounds are set.
       '.lf-search-pill{display:inline-flex;align-items:center;gap:6px;',
       'background:#fff;border:1px solid #ff5e3a;border-radius:999px;',
@@ -1719,12 +1727,28 @@
     document.body.appendChild(cancel);
   };
 
+  // Measure the search bar's actual bottom edge (the toolbar shrinks when
+  // overlay opens because the Filters/Saved/Sort buttons are hidden), then
+  // position the map below it. Sets the CSS variable both rules consume.
+  const updateOverlayMapTop = () => {
+    const search = document.getElementById('lfb-search-wrap');
+    if (!search) return;
+    // Compute the y of the search-wrap's bottom edge in viewport coords.
+    const bottom = Math.round(search.getBoundingClientRect().bottom);
+    document.documentElement.style.setProperty(
+      '--lf-search-overlay-map-top', bottom + 'px'
+    );
+  };
+
   const openSearchOverlay = () => {
     if (!window.matchMedia('(max-width: 767px)').matches) return;
     const map = window.LfbB && window.LfbB.map;
     if (!map) return;
     ensureSearchOverlayChrome();
     document.body.classList.add('lf-search-overlay-open');
+    // Re-measure now that the toolbar buttons are hidden so the map sits
+    // directly under the (now-shorter) toolbar.
+    requestAnimationFrame(updateOverlayMapTop);
     // Restore the last-used bounds if any so the user picks up where they left off.
     const start = state.searchBounds || readPersistedSearchArea();
     if (start) {
@@ -1732,11 +1756,17 @@
         { padding: 12, animate: false });
     }
     // Map was display:none — force a resize so MapLibre adopts the new dimensions.
-    setTimeout(() => map.resize(), 50);
+    setTimeout(() => { map.resize(); updateOverlayMapTop(); }, 60);
   };
   const closeSearchOverlay = () => {
     document.body.classList.remove('lf-search-overlay-open');
   };
+  // Keep the map top in sync if orientation or viewport changes while open.
+  window.addEventListener('resize', () => {
+    if (document.body.classList.contains('lf-search-overlay-open')) {
+      updateOverlayMapTop();
+    }
+  }, { passive: true });
 
   const wireSearchOverlayTrigger = () => {
     if (!window.matchMedia('(max-width: 767px)').matches) return;
