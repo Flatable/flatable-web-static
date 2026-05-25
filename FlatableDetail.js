@@ -51,7 +51,37 @@
       '.lfg22__chip{background:linear-gradient(135deg,#ff8b3d,#ff5e3a)!important;',
         'color:#fff!important;border-color:transparent!important;display:inline-flex;',
         'align-items:center;gap:6px}',
-      '.lfg22__chip .lf-chip__emoji{font-size:1em;line-height:1;flex:0 0 auto}'
+      '.lfg22__chip .lf-chip__emoji{font-size:1em;line-height:1;flex:0 0 auto}',
+      // Brand brighter orange replaces the muted brown on these elements.
+      '.lfh15__kicker{color:#ff5e3a!important}',
+      '.lfg22__hh-g-icon{color:#ff5e3a!important;fill:#ff5e3a!important}',
+      // Apply CTA now has a white fill with bright orange text + border, so it
+      // matches the Skip button visually while still reading as the primary action.
+      '.lf-bar__apply{background:#fff!important;background-image:none!important;',
+        'color:#ff5e3a!important;border:1.5px solid #ff5e3a!important}',
+      '.lf-bar__apply .lf-bar__apply-icon,.lf-bar__apply span{color:#ff5e3a!important}',
+      // Lightbox — fullscreen photo viewer.
+      '.lf-photo-cursor{cursor:zoom-in}',
+      '.lf-lightbox{position:fixed;inset:0;background:rgba(8,4,2,0.92);display:none;',
+        'align-items:center;justify-content:center;z-index:10000;padding:24px}',
+      '.lf-lightbox.is-open{display:flex}',
+      '.lf-lightbox__img{max-width:95vw;max-height:90vh;object-fit:contain;',
+        'box-shadow:0 24px 60px rgba(0,0,0,0.4);border-radius:12px}',
+      '.lf-lightbox__btn{position:absolute;top:50%;transform:translateY(-50%);',
+        'width:48px;height:48px;border-radius:50%;background:rgba(255,255,255,0.15);',
+        'border:0;color:#fff;font-size:28px;cursor:pointer;display:inline-flex;',
+        'align-items:center;justify-content:center;line-height:1;font-family:inherit;',
+        'transition:background 160ms ease}',
+      '.lf-lightbox__btn:hover{background:rgba(255,255,255,0.3)}',
+      '.lf-lightbox__btn--prev{left:24px}.lf-lightbox__btn--next{right:24px}',
+      '.lf-lightbox__close{position:absolute;top:24px;right:24px;width:44px;height:44px;',
+        'border-radius:50%;background:rgba(255,255,255,0.15);border:0;color:#fff;',
+        'font-size:26px;cursor:pointer;display:inline-flex;align-items:center;',
+        'justify-content:center;line-height:1;font-family:inherit;padding:0}',
+      '.lf-lightbox__close:hover{background:rgba(255,255,255,0.3)}',
+      '.lf-lightbox__count{position:absolute;bottom:24px;left:50%;transform:translateX(-50%);',
+        'color:#fff;font-size:14px;background:rgba(0,0,0,0.4);padding:6px 14px;border-radius:999px;',
+        'font-variant-numeric:tabular-nums}'
     ].join('');
     const s = document.createElement('style');
     s.id = 'lfb-detail-css';
@@ -471,6 +501,113 @@
     return btn;
   };
 
+  // === 7c. Hero photo lightbox (fullscreen viewer) ===
+  // Clicking the photo (or its image) opens a fullscreen carousel. Prev/Next
+  // step through every URL in the data-photos comma list. Esc / × closes.
+  const buildLightbox = (urls) => {
+    const existing = document.getElementById('lf-lightbox');
+    if (existing) return existing;
+    const root = document.createElement('div');
+    root.id = 'lf-lightbox';
+    root.className = 'lf-lightbox';
+    root.setAttribute('role', 'dialog');
+    root.setAttribute('aria-modal', 'true');
+
+    const img = document.createElement('img');
+    img.className = 'lf-lightbox__img';
+    img.alt = '';
+    root.appendChild(img);
+
+    const close = document.createElement('button');
+    close.type = 'button';
+    close.className = 'lf-lightbox__close';
+    close.setAttribute('aria-label', 'Close');
+    close.textContent = '×';
+    root.appendChild(close);
+
+    const prev = document.createElement('button');
+    prev.type = 'button';
+    prev.className = 'lf-lightbox__btn lf-lightbox__btn--prev';
+    prev.setAttribute('aria-label', 'Previous photo');
+    prev.textContent = '‹';
+    root.appendChild(prev);
+
+    const next = document.createElement('button');
+    next.type = 'button';
+    next.className = 'lf-lightbox__btn lf-lightbox__btn--next';
+    next.setAttribute('aria-label', 'Next photo');
+    next.textContent = '›';
+    root.appendChild(next);
+
+    const count = document.createElement('div');
+    count.className = 'lf-lightbox__count';
+    root.appendChild(count);
+
+    document.body.appendChild(root);
+
+    let idx = 0;
+    const render = () => {
+      img.src = urls[idx];
+      count.textContent = (idx + 1) + ' / ' + urls.length;
+      const multi = urls.length > 1;
+      prev.style.display = multi ? '' : 'none';
+      next.style.display = multi ? '' : 'none';
+      count.style.display = multi ? '' : 'none';
+    };
+    const closeLb = () => {
+      root.classList.remove('is-open');
+      document.body.style.overflow = '';
+    };
+    const openLb = (startIdx) => {
+      idx = Math.max(0, Math.min(startIdx || 0, urls.length - 1));
+      render();
+      root.classList.add('is-open');
+      document.body.style.overflow = 'hidden';
+    };
+    const step = (delta) => {
+      idx = (idx + delta + urls.length) % urls.length;
+      render();
+    };
+
+    close.addEventListener('click', closeLb);
+    prev.addEventListener('click', (e) => { e.stopPropagation(); step(-1); });
+    next.addEventListener('click', (e) => { e.stopPropagation(); step(1); });
+    root.addEventListener('click', (e) => { if (e.target === root) closeLb(); });
+    document.addEventListener('keydown', (e) => {
+      if (!root.classList.contains('is-open')) return;
+      if (e.key === 'Escape') closeLb();
+      else if (e.key === 'ArrowLeft') step(-1);
+      else if (e.key === 'ArrowRight') step(1);
+    });
+
+    root._open = openLb;
+    return root;
+  };
+
+  const wireLightbox = () => {
+    const photo = document.querySelector('.lfh15__photo');
+    if (!photo) return;
+    const photosAttr = photo.getAttribute('data-photos') || '';
+    const urls = photosAttr.split(',').map(s => s.trim()).filter(Boolean);
+    if (!urls.length) return;
+    const lb = buildLightbox(urls);
+    photo.classList.add('lf-photo-cursor');
+
+    const findCurrentIndex = () => {
+      const live = photo.querySelector('.lfh15__photo-img');
+      if (!live) return 0;
+      const i = urls.indexOf(live.getAttribute('src'));
+      return i >= 0 ? i : 0;
+    };
+
+    photo.addEventListener('click', (e) => {
+      // Don't hijack the prev/next nav buttons; they cycle the inline carousel.
+      if (e.target.closest('.lfh15__photo-nav') || e.target.closest('.lfh15__photo-dot')) return;
+      e.preventDefault();
+      lb._open(findCurrentIndex());
+    });
+  };
+
   const wireHeroHeart = () => {
     // Anchor on the photo container so the heart sits on the image, not the
     // full-width hero band. Falls back to .lfh15 only if photo is missing.
@@ -557,6 +694,7 @@
     wireApplyButton();
     wireSkipButton();
     wireHeroHeart();
+    wireLightbox();
     decorateChips();
   };
 
