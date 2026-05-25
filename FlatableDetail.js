@@ -74,6 +74,10 @@
       '.lfh15-facts{display:grid!important;grid-template-columns:1fr 1fr!important;',
       'gap:16px 12px!important;width:100%!important;align-items:start!important}',
       '.lfh15-fact{width:auto!important;min-width:0!important}',
+      // Street title auto-shrinks via clamp so long names like
+      // "Bahnhofstrasse" never wrap or overflow the narrow viewport.
+      '.lfh15__title{font-size:clamp(26px,8vw,44px)!important;line-height:1.1!important;',
+      'word-break:break-word!important}',
       '}',
       // Active carousel dash uses brand orange (overrides HeroSlider inline white).
       '.lfh15__photo-dot[aria-current="true"]{',
@@ -332,12 +336,14 @@
         'border-radius:14px;padding:14px 18px;text-decoration:none;font-weight:600;font-size:15px;',
         'transition:transform 120ms ease,box-shadow 120ms ease;',
         'flex:1 1 0;min-width:0;max-width:200px;box-sizing:border-box}',
-      // Mobile: stack the two store buttons vertically, each full-width and
-      // matching height, so the modal stays comfortable on small screens.
+      // Mobile: stack the two store buttons vertically. Each shrinks to its
+      // content (auto width) and the inner meta column centres so the icon +
+      // text sit nicely in the middle of the pill.
       '@media (max-width:767px){',
-        '.lf-apply-modal__buttons{flex-direction:column!important;align-items:stretch!important}',
-        '.lf-apply-modal__btn{flex:0 0 auto!important;max-width:none!important;width:100%!important;',
-          'min-height:64px!important}',
+        '.lf-apply-modal__buttons{flex-direction:column!important;align-items:center!important}',
+        '.lf-apply-modal__btn{flex:0 0 auto!important;width:auto!important;max-width:100%!important;',
+          'min-height:60px!important;justify-content:center!important;padding:14px 22px!important}',
+        '.lf-apply-modal__btn-meta{align-items:flex-start!important}',
       '}',
       '.lf-apply-modal__btn:hover{transform:translateY(-1px);box-shadow:0 8px 18px rgba(0,0,0,0.18)}',
       '.lf-apply-modal__btn svg{width:22px;height:22px;flex:0 0 22px;fill:currentColor}',

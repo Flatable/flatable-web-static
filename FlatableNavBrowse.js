@@ -133,7 +133,7 @@
           'text-align:center!important;width:100%!important;gap:6px!important}',
         '.nav_mobile_menu_wrap .nav_actions_wrap{',
           'display:flex!important;flex-direction:column!important;align-items:center!important;',
-          'text-align:center!important;width:100%!important;gap:8px!important;',
+          'text-align:center!important;width:100%!important;gap:16px!important;',
           'margin-top:12px!important;padding-top:0!important}',
         '.nav_mobile_menu_wrap .nav_buttons_item{margin:0!important;padding:0!important}',
         '.nav_mobile_menu_wrap .nav_buttons_item .button_main_wrap{margin:0 auto!important}',

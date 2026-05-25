@@ -1393,10 +1393,14 @@
       'width:calc(100% - 24px)!important;height:28vh!important;min-height:0!important;',
       'max-height:280px!important;z-index:80!important;margin:0 12px!important}',
       '#' + CFG.mapMountId + ',.lfb__map-mount{height:100%!important;width:100%!important}',
-      // Cards grid: single column, full width.
+      // Cards grid: single column, full width. Tight top so the first card
+      // sits just below the map instead of after a gap.
       '.lfb__grid,.w-dyn-list .w-dyn-items{grid-template-columns:1fr!important;',
-      'display:grid!important;gap:16px!important;padding:12px!important;width:100%!important;',
-      'box-sizing:border-box!important}',
+      'display:grid!important;gap:12px!important;padding:8px 12px 16px!important;',
+      'width:100%!important;box-sizing:border-box!important;margin-top:0!important}',
+      // Kill any Webflow-default margin on the grid wrapper that pushes the
+      // first card down.
+      '.w-dyn-list{margin-top:0!important;padding-top:0!important}',
       '.lfb__card-1,.w-dyn-item{width:100%!important;max-width:100%!important;',
       'min-width:0!important;box-sizing:border-box!important}',
       // Toolbar: full-width, two rows (search full row, buttons row), sticky below header.
@@ -1411,7 +1415,11 @@
       '.lfb__toolbar #lfb-filters-btn,.lfb__toolbar #lfb-saved-btn,.lfb__toolbar #lfb-sort-btn{',
       'flex:1 1 0!important;order:1!important;justify-content:center!important;',
       'min-width:0!important;min-height:44px!important;padding:6px 10px!important;',
-      'overflow:hidden!important;text-align:center!important}',
+      'text-align:center!important}',
+      // NOTE: do NOT set overflow:hidden on #lfb-sort-btn — the dropdown is
+      // an absolutely-positioned child and gets clipped if the parent hides
+      // overflow. Keep overflow visible explicitly.
+      '.lfb__toolbar #lfb-sort-btn{overflow:visible!important}',
       // Long sort labels (e.g. "Rent: low to high") wrap inside the narrow
       // button instead of overflowing. Font shrinks a touch; button height stays.
       '.lfb__toolbar-btn span{white-space:normal!important;line-height:1.1!important;',
@@ -1459,6 +1467,13 @@
     if (toolbar.parentNode !== main || toolbar.nextElementSibling !== mapAside) {
       main.insertBefore(toolbar, mapAside);
     }
+    // Defensive: ensure Lenis (Webflow's smooth-scroll lib) is running. On
+    // first refresh the scroll was occasionally locked until the user tapped
+    // a link — likely the map's data-lenis-prevent isolation stopped Lenis
+    // and a touch outside the map never restarted it. Force a restart here.
+    try {
+      if (window.lenis && typeof window.lenis.start === 'function') window.lenis.start();
+    } catch (e) { /* lenis unavailable; nothing to do */ }
     updateMobileStickyOffsets();
     // Re-measure whenever orientation/resize changes the header or toolbar height.
     window.addEventListener('resize', updateMobileStickyOffsets, { passive: true });
