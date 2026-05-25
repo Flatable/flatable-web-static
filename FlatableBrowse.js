@@ -169,16 +169,23 @@
     if (!mount) return null;
 
     // Mobile map is ~half the desktop width, so the same zoom shows only a
-    // sliver of Switzerland. Drop further so Geneva and Ticino both fit.
+    // sliver of Switzerland. Use fitBounds on the Switzerland bbox once the
+    // map loads so the whole country is always visible regardless of the
+    // mobile map's actual rendered size.
     const isMobile = window.matchMedia && window.matchMedia('(max-width: 767px)').matches;
-    const initialZoom = isMobile ? 6.0 : CFG.initialZoom;
     const map = new window.maplibregl.Map({
       container: CFG.mapMountId,
       style: CFG.tileStyle,
       center: CFG.initialCenter,
-      zoom: initialZoom,
+      zoom: isMobile ? 6 : CFG.initialZoom,
       attributionControl: false,
     });
+    if (isMobile) {
+      map.once('load', () => {
+        // Switzerland bbox with a small pad so corners aren't on the very edge.
+        map.fitBounds([[5.9, 45.8], [10.5, 47.85]], { padding: 6, animate: false });
+      });
+    }
     map.addControl(new window.maplibregl.NavigationControl({ showCompass: false }), 'top-right');
     map.addControl(new window.maplibregl.AttributionControl({ compact: true }), 'bottom-right');
     return map;
