@@ -41,13 +41,14 @@
       '.lfg22__hh-fact{min-width:0}',
       // Vertically center the gender icon/number triplets — they were sitting on the
       // top border because the row defaults to align-items: flex-start.
-      // Gender row mirrors the height of the sibling h6 values (Flatmates, Age
-      // range) so the icon+number baseline aligns with the rest of the row.
-      // Note: NO line-height override on the inner h6 — that previously squashed
-      // it to 17px while siblings were 22.1px, pushing this column up by ~5px.
+      // Gender row mirrors the height of the sibling h6 values (Flatmates,
+      // Age range). The inline-flex inner h6 defaults to line-height 1, which
+      // squashes the row to 17px vs the regular h6's ~22.1px and pushes this
+      // column up. Explicit line-height matches Webflow's default h6.
       '.lfg22__hh-gender{display:flex;align-items:center;gap:14px}',
       '.lfg22__hh-g{display:inline-flex;align-items:center;gap:6px}',
-      '.lfg22__hh-g-num,.lfg22__hh-g-numv{margin:0;display:inline-flex;align-items:center}',
+      '.lfg22__hh-g-num{margin:0;display:inline-flex;align-items:center}',
+      '.lfg22__hh-g-numv{margin:0;line-height:1.3!important}',
       // Tenancy badge — orange outline only, no fill.
       '.lfh15__badge{background:transparent!important;background-color:transparent!important;',
         'border:1px solid #ff5e3a!important;color:#ff5e3a!important;font-weight:600}',
