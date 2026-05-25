@@ -306,8 +306,13 @@
     const r = grid.getBoundingClientRect();
     // Account for the fixed toolbar above the results so the first row isn't tucked under it.
     const offset = (CFG.toolbarTopOffset || 96) + 16;
-    const y = window.scrollY + r.top - offset;
-    window.scrollTo({ top: Math.max(0, y), behavior: 'smooth' });
+    const target = Math.max(0, window.scrollY + r.top - offset);
+    // Only scroll UP toward the grid top — never down. If the user is already
+    // above the grid (e.g. scrollY=0 on a fresh visit), leave the scroll alone.
+    // Scrolling down would jolt the sticky map a few pixels.
+    if (window.scrollY > target + 4) {
+      window.scrollTo({ top: target, behavior: 'smooth' });
+    }
   };
   const wireSavedToggle = (state, applyFn) => {
     const btn = document.getElementById('lfb-saved-btn');
@@ -397,6 +402,20 @@
       return null;
     }
   };
+  // Any filter (excluding the Saved toggle, which has its own button signal)
+  // currently deviating from defaults? Used to colour the Filters button.
+  const isAnyFilterActive = (state) => (
+    state.rentMin !== null || state.rentMax !== null ||
+    state.sizeMin !== null || state.sizeMax !== null ||
+    state.from !== null || state.until !== null ||
+    state.type !== 'any' || state.furn !== 'any' ||
+    state.occMin !== null || state.occMax !== null ||
+    state.ageMin !== null || state.ageMax !== null ||
+    state.gender !== 'any' || state.student !== 'any' ||
+    (state.amen && state.amen.length > 0) ||
+    (state.lang && state.lang.length > 0)
+  );
+
   const writePersistedFilters = (state) => {
     try {
       localStorage.setItem(FILTER_KEY, JSON.stringify({
@@ -496,6 +515,12 @@
     // Snapshot the active filter state on every layout change. Skip-back from a
     // detail page rebuilds /browse-flats; we want that boot to restore here.
     writePersistedFilters(state);
+
+    // Surface a visual indicator on the Filters button so the user knows a
+    // filter is currently constraining the result set. Saved-only has its own
+    // button indicator so it's excluded here.
+    const fb = document.getElementById('lfb-filters-btn');
+    if (fb) fb.classList.toggle('is-active', isAnyFilterActive(state));
 
     // Re-anchor scroll after the layout settles. If the document height now
     // can't reach the previous scrollY, the browser would clamp us to the new
@@ -1212,6 +1237,10 @@
       // Active state for Saved toolbar button mirrors marker-hover pill style.
       '#lfb-saved-btn.is-active{background:linear-gradient(135deg,#ff8b3d,#ff5e3a)!important;color:#fff!important;border-color:transparent!important}',
       '#lfb-saved-btn.is-active svg{stroke:#fff!important}',
+      // Filters button mirrors the Saved button's active treatment so the user
+      // can tell at a glance that a filter is constraining the results.
+      '#lfb-filters-btn.is-active{background:linear-gradient(135deg,#ff8b3d,#ff5e3a)!important;color:#fff!important;border-color:transparent!important}',
+      '#lfb-filters-btn.is-active svg{stroke:#fff!important}',
       // Browse card vibe/trait chips — orange gradient + white text + emoji prefix.
       '.lfb__card__tag{background:linear-gradient(135deg,#ff8b3d,#ff5e3a)!important;',
       'color:#fff!important;border-color:transparent!important;display:inline-flex;',
