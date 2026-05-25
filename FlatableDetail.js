@@ -605,71 +605,91 @@
   };
 
   // === Hero photo cross-fade ===
-  // When the carousel swaps src, hold the previous frame on a "ghost" <img>
-  // layer until the new image has actually decoded, then fade the ghost out.
-  // Result: the viewer never sees the photo container background between
-  // images — old photo stays put until the next one is ready.
+  // Strategy: the live <img> is LOCKED to whatever is currently on-screen.
+  // When the slider changes its src, we revert that change immediately (in the
+  // same MutationObserver microtask, before a paint can happen) so the user
+  // never sees the live img go blank. Meanwhile we load the new src into a
+  // fader <img> on top. Once that fader is decoded, we fade it in. After the
+  // fade completes we commit the new src back onto the live img (it's now in
+  // the browser cache so the swap is invisible) and hide the fader for the
+  // next round.
   const observeHeroPhoto = () => {
     const wrap = document.querySelector('.lfh15__photo');
     const live = wrap?.querySelector('.lfh15__photo-img');
     if (!wrap || !live) return;
 
-    // Photo container needs to be a positioning context for the ghost overlay.
     if (getComputedStyle(wrap).position === 'static') wrap.style.position = 'relative';
-    // White fill prevents any peachy page bg from leaking through during paint.
     wrap.style.backgroundColor = '#fff';
 
-    const ghost = document.createElement('img');
-    ghost.className = 'lf-img-ghost';
-    ghost.alt = '';
-    ghost.setAttribute('aria-hidden', 'true');
-    ghost.style.position = 'absolute';
-    ghost.style.inset = '0';
-    ghost.style.width = '100%';
-    ghost.style.height = '100%';
-    ghost.style.objectFit = getComputedStyle(live).objectFit || 'cover';
-    ghost.style.objectPosition = getComputedStyle(live).objectPosition || 'center';
-    ghost.style.zIndex = '2';
-    ghost.style.pointerEvents = 'none';
-    ghost.style.opacity = '0';
-    ghost.style.transition = 'opacity 260ms ease';
-    wrap.appendChild(ghost);
+    const fader = document.createElement('img');
+    fader.className = 'lf-img-ghost';
+    fader.alt = '';
+    fader.setAttribute('aria-hidden', 'true');
+    fader.style.position = 'absolute';
+    fader.style.inset = '0';
+    fader.style.width = '100%';
+    fader.style.height = '100%';
+    fader.style.objectFit = getComputedStyle(live).objectFit || 'cover';
+    fader.style.objectPosition = getComputedStyle(live).objectPosition || 'center';
+    fader.style.zIndex = '2';
+    fader.style.pointerEvents = 'none';
+    fader.style.opacity = '0';
+    wrap.appendChild(fader);
 
-    let lastSrc = live.getAttribute('src') || live.src;
+    // The currently-displayed src — the only value live.src is allowed to hold.
+    let displayed = live.getAttribute('src') || live.src;
+    // The src we're in the middle of fading in (so the observer doesn't
+    // re-trigger when we commit it back onto live at the end).
+    let committing = null;
 
-    const showGhostAs = (src) => {
-      if (!src) return;
-      ghost.style.transition = 'none';
-      ghost.src = src;
-      ghost.style.opacity = '1';
-      // Force a reflow so the next transition reads from opacity:1.
-      void ghost.offsetWidth;
-      ghost.style.transition = 'opacity 260ms ease';
-    };
-
-    const fadeGhostOut = () => {
-      ghost.style.opacity = '0';
-    };
+    const FADE_MS = 260;
 
     const obs = new MutationObserver(() => {
-      const newSrc = live.getAttribute('src') || live.src;
-      if (!newSrc || newSrc === lastSrc) return;
-      // Mask the new src behind the previous frame.
-      showGhostAs(lastSrc);
-      lastSrc = newSrc;
-      // Preload via a detached image so we can be sure decoding finished
-      // before fading the ghost — Safari sometimes fires `load` before paint.
+      const desired = live.getAttribute('src') || live.src;
+      if (!desired) return;
+      // We just committed this ourselves at the end of a transition.
+      if (desired === committing) { committing = null; displayed = desired; return; }
+      // No change vs what's actually shown — nothing to do.
+      if (desired === displayed) return;
+
+      // Snap the live img back to the currently-displayed src BEFORE paint.
+      // MutationObserver fires as a microtask, so this revert happens within
+      // the same frame; the user never sees a blank.
+      live.setAttribute('src', displayed);
+
+      // Preload the new src via a detached probe so we can be sure decode
+      // finished before we ever raise opacity.
       const probe = new Image();
-      const reveal = () => {
+      probe.addEventListener('load', () => {
+        const showFader = () => {
+          fader.style.transition = 'none';
+          fader.src = desired;
+          fader.style.opacity = '0';
+          void fader.offsetWidth; // commit the opacity:0 baseline
+          fader.style.transition = 'opacity ' + FADE_MS + 'ms ease';
+          fader.style.opacity = '1';
+          window.setTimeout(() => {
+            // Cross-fade done — commit the new src onto the live img (cached,
+            // so it paints instantly) and reset the fader for the next round.
+            committing = desired;
+            live.setAttribute('src', desired);
+            fader.style.transition = 'none';
+            fader.style.opacity = '0';
+            fader.removeAttribute('src');
+          }, FADE_MS + 30);
+        };
         if (typeof probe.decode === 'function') {
-          probe.decode().catch(() => {}).then(fadeGhostOut);
+          probe.decode().catch(() => {}).then(showFader);
         } else {
-          fadeGhostOut();
+          showFader();
         }
-      };
-      probe.addEventListener('load', reveal, { once: true });
-      probe.addEventListener('error', fadeGhostOut, { once: true });
-      probe.src = newSrc;
+      }, { once: true });
+      probe.addEventListener('error', () => {
+        // Preload failed; just let the slider's src stand (better than getting stuck).
+        committing = desired;
+        live.setAttribute('src', desired);
+      }, { once: true });
+      probe.src = desired;
     });
     obs.observe(live, { attributes: true, attributeFilter: ['src'] });
   };
