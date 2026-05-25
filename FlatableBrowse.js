@@ -565,16 +565,25 @@
     // browser may auto-clamp scrollY, which feels like an unexpected jump.
     // We clamp ourselves to a sensible target so the user stays roughly where they were.
     const scrollBefore = window.scrollY;
+    // Scroll-anchor: capture the first card currently visible in the viewport
+    // plus its current Y offset. After reflow, scroll so the same card sits
+    // at the same offset — eliminates the jump-to-footer the user used to see
+    // when applyAll shrunk the document. Works regardless of how many cards
+    // hide/show as a result of the new map viewport.
+    const anchorBefore = (() => {
+      const cards = $$('.' + CFG.dynItemClass + ':not([style*="display: none"]) ' + CFG.cardSelector);
+      for (const c of cards) {
+        const r = c.getBoundingClientRect();
+        if (r.bottom > 0 && r.top < window.innerHeight) {
+          return { card: c, offsetTop: r.top };
+        }
+      }
+      return null;
+    })();
     const bounds = map.getBounds();
     const visibleSlugs = [];
-    // On mobile the map shows all of Switzerland at a fixed zoom so the
-    // viewport bound check would never hide a flat anyway — but the
-    // map.on('moveend') hook still fires on tiny pans, which used to make the
-    // document height oscillate and trigger a browser scroll clamp the user
-    // perceived as "jumping to the footer". Skip the viewport gate on mobile.
-    const isMobile = window.matchMedia && window.matchMedia('(max-width: 767px)').matches;
     data.forEach(d => {
-      const inViewport = isMobile ? true : bounds.contains([d.lng, d.lat]);
+      const inViewport = bounds.contains([d.lng, d.lat]);
       const passesFilters = matchesFilters(d, state);
       // Card-side: only render cards whose marker is inside the current viewport
       // AND that match the user's filters.
@@ -617,10 +626,21 @@
     const fb = document.getElementById('lfb-filters-btn');
     if (fb) fb.classList.toggle('is-active', isAnyFilterActive(state));
 
-    // Re-anchor scroll after the layout settles. If the document height now
-    // can't reach the previous scrollY, the browser would clamp us to the new
-    // bottom — pin to a safe upper bound so we don't appear to teleport to the footer.
+    // Re-anchor scroll after the layout settles. Preferred strategy: if we
+    // captured a scroll-anchor card and it's still visible after the reflow,
+    // scroll so it sits at the same viewport offset (no visual jump). Fall
+    // back to clamping to the new max scroll (still better than letting the
+    // browser auto-clamp to the new document bottom).
     requestAnimationFrame(() => {
+      if (anchorBefore && anchorBefore.card.isConnected &&
+          getComputedStyle(anchorBefore.card.parentElement || anchorBefore.card).display !== 'none') {
+        const newTop = anchorBefore.card.getBoundingClientRect().top;
+        const delta = newTop - anchorBefore.offsetTop;
+        if (Math.abs(delta) > 1) {
+          window.scrollBy({ top: delta, left: 0, behavior: 'auto' });
+        }
+        return;
+      }
       const maxScroll = Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
       const target = Math.min(scrollBefore, maxScroll);
       if (Math.abs(window.scrollY - target) > 2) {
