@@ -215,6 +215,20 @@
   // being auto-resolved on the published page, so each card link renders with
   // href="detail_flats" (the template page slug, no item slug). Set the real
   // href per card from the hidden data-bind="slug" carrier.
+  // Attach a shimmer class to every browse card image until it finishes loading.
+  // Safe to call repeatedly; cached images get the class removed immediately.
+  const wireCardImageLoading = (data) => {
+    data.forEach(d => {
+      const img = d.card.querySelector('.lfb__card__img-1') || d.card.querySelector('img');
+      if (!img) return;
+      if (img.complete && img.naturalWidth > 0) return;
+      img.classList.add('lf-img-loading');
+      const done = () => img.classList.remove('lf-img-loading');
+      img.addEventListener('load', done, { once: true });
+      img.addEventListener('error', done, { once: true });
+    });
+  };
+
   const wireCardLinks = (data) => {
     data.forEach(d => {
       if (!d.slug) return;
@@ -1277,6 +1291,10 @@
       // Tenancy/permanent tag on browse card: orange outline, transparent fill.
       '.lfb__card__perm-tag{background:transparent!important;background-color:transparent!important;',
       'border:1px solid #ff5e3a!important;color:#ff5e3a!important;font-weight:600}',
+      // Image loading shimmer — placeholder while a card photo is fetching.
+      '@keyframes lf-img-shimmer{0%{background-position:-200% 0}100%{background-position:200% 0}}',
+      '.lf-img-loading{background:linear-gradient(90deg,#f0e7dd 0%,#faf5ee 50%,#f0e7dd 100%)!important;',
+      'background-size:200% 100%!important;animation:lf-img-shimmer 1.4s ease-in-out infinite}',
       '.lfb__fp{position:fixed;inset:0;z-index:1100;display:none}',
       '.lfb__fp.open{display:block}',
       '.lfb__fp__bg{position:absolute;inset:0;background:rgba(20,16,12,.4)}',
@@ -1373,6 +1391,7 @@
 
       placeMarkers(map, data);
       wireCardLinks(data);
+      wireCardImageLoading(data);
       wireClickScroll(data);
       // The chip splitter runs at body bottom and writes chips into cards.
       // Decorate after a microtask so we run after its initial pass, then

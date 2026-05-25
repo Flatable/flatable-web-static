@@ -57,6 +57,13 @@
         'color:#fff!important;border-color:transparent!important;display:inline-flex;',
         'align-items:center;gap:6px}',
       '.lfg22__chip .lf-chip__emoji{font-size:1em;line-height:1;flex:0 0 auto}',
+      // Image loading shimmer — covers the photo area while the asset fetches.
+      '@keyframes lf-img-shimmer{0%{background-position:-200% 0}100%{background-position:200% 0}}',
+      '.lf-img-loading{background:linear-gradient(90deg,#f0e7dd 0%,#faf5ee 50%,#f0e7dd 100%)!important;',
+        'background-size:200% 100%!important;animation:lf-img-shimmer 1.4s ease-in-out infinite}',
+      // Active carousel dash uses brand orange (overrides HeroSlider inline white).
+      '.lfh15__photo-dot[aria-current="true"]{',
+        'background:linear-gradient(135deg,#ff8b3d,#ff5e3a)!important}',
       // Brand brighter orange replaces the muted brown on these elements.
       '.lfh15__kicker{color:#ff5e3a!important}',
       '.lfg22__hh-g-icon{color:#ff5e3a!important;fill:#ff5e3a!important}',
@@ -597,6 +604,31 @@
     return root;
   };
 
+  // === Image loading state ===
+  // Toggle the shimmer class while an image fetches. Safe to call repeatedly
+  // (e.g. each time the hero slider swaps src for the next photo).
+  const applyLoadingShimmer = (img) => {
+    if (!img) return;
+    if (img.complete && img.naturalWidth > 0) {
+      img.classList.remove('lf-img-loading');
+      return;
+    }
+    img.classList.add('lf-img-loading');
+    const done = () => img.classList.remove('lf-img-loading');
+    img.addEventListener('load', done, { once: true });
+    img.addEventListener('error', done, { once: true });
+  };
+
+  // The hero slider rewrites src as the user steps through photos; re-apply
+  // the shimmer on every src change so a slow next-photo fetch is also covered.
+  const observeHeroPhoto = () => {
+    const img = document.querySelector('.lfh15__photo-img');
+    if (!img) return;
+    applyLoadingShimmer(img);
+    const obs = new MutationObserver(() => applyLoadingShimmer(img));
+    obs.observe(img, { attributes: true, attributeFilter: ['src'] });
+  };
+
   const wireLightbox = () => {
     const photo = document.querySelector('.lfh15__photo');
     if (!photo) return;
@@ -708,6 +740,7 @@
     wireSkipButton();
     wireHeroHeart();
     wireLightbox();
+    observeHeroPhoto();
     decorateChips();
   };
 
