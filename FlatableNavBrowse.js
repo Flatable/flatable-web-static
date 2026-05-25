@@ -103,14 +103,29 @@
       'li[' + MARKER + '="' + MARKER_VALUE + '"] .button_eye_text{color:#fff!important}',
       'li[' + MARKER + '="' + MARKER_VALUE + '"] .button_main_wrap:hover{',
         'filter:brightness(1.05)}',
-      // === MOBILE (≤767px) — center the hamburger menu items and tint the
-      // Browse Flats entry orange to match the desktop CTA.
+      // === MOBILE (≤767px) — center every entry in the hamburger drawer
+      // (nav links, the Services dropdown toggle, and the Download CTA), and
+      // tint the cloned Browse Flats entry orange to match the desktop pill.
       '@media (max-width:767px){',
-        '.nav_mobile_menu_wrap .nav_links_wrap{text-align:center!important;align-items:center!important}',
-        '.nav_mobile_menu_wrap .nav_links_item{display:flex!important;justify-content:center!important;width:100%!important}',
-        '.nav_mobile_menu_wrap .nav_links_link{justify-content:center!important;text-align:center!important;width:auto!important;margin:0 auto!important}',
-        '.nav_mobile_menu_wrap .nav_links_text{text-align:center!important}',
-        '.nav_mobile_menu_wrap .nav_dropdown_component,.nav_mobile_menu_wrap .nav_dropdown_toggle{justify-content:center!important;text-align:center!important;margin:0 auto!important}',
+        '.nav_mobile_menu_wrap .nav_links_wrap,.nav_mobile_menu_wrap .nav_actions_wrap{',
+          'display:flex!important;flex-direction:column!important;align-items:center!important;',
+          'text-align:center!important;width:100%!important;gap:6px!important}',
+        '.nav_mobile_menu_wrap .nav_links_item,.nav_mobile_menu_wrap .nav_buttons_item{',
+          'display:flex!important;justify-content:center!important;width:100%!important;text-align:center!important}',
+        '.nav_mobile_menu_wrap .nav_links_link,.nav_mobile_menu_wrap .nav_dropdown_toggle{',
+          'justify-content:center!important;text-align:center!important;width:auto!important;',
+          'margin:0 auto!important;display:inline-flex!important;align-items:center!important}',
+        '.nav_mobile_menu_wrap .nav_links_text{text-align:center!important;width:auto!important}',
+        // Services dropdown — the component wrapper + its open list both need centring.
+        '.nav_mobile_menu_wrap .nav_dropdown_component{display:flex!important;flex-direction:column!important;',
+          'align-items:center!important;width:100%!important}',
+        '.nav_mobile_menu_wrap .nav_dropdown_list{left:50%!important;transform:translateX(-50%)!important;',
+          'text-align:center!important}',
+        '.nav_mobile_menu_wrap .nav_dropdown_link{justify-content:center!important;text-align:center!important;',
+          'width:100%!important;margin:0!important}',
+        // Download CTA wrapper — was anchored bottom-left; center it.
+        '.nav_mobile_menu_wrap .button_main_wrap{margin:0 auto!important}',
+        // Browse Flats orange pill in the mobile drawer.
         '.nav_mobile_menu_wrap .nav_links_item[' + MARKER + '="browse"] .nav_links_link{',
           'background:linear-gradient(135deg,#ff8b3d,#ff5e3a)!important;color:#fff!important;',
           'border-radius:999px!important;padding:10px 22px!important;display:inline-flex!important;',
