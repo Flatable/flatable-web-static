@@ -660,8 +660,31 @@
         }
         return;
       }
-      // No previously-visible card survived — fall back to clamping, but only
-      // shrink scroll if absolutely necessary so we never reach down to footer.
+      // No previously-visible card survived (most common when the user pans
+      // the map into an empty area — every visible card gets display:none and
+      // the document collapses to header+toolbar+empty-grid+footer). The old
+      // fallback `Math.min(scrollBefore, maxScroll)` then clamped to the
+      // footer because maxScroll < scrollBefore. Instead: land at the top of
+      // the cards grid (minus the sticky header+toolbar offset) so the user
+      // sees the empty grid + their search input, ready to pan back.
+      const grid = document.querySelector(CFG.gridSelector);
+      if (grid) {
+        const gridTopDoc = grid.getBoundingClientRect().top + window.scrollY;
+        // Sticky-header (~80px on desktop, var on mobile). Use the toolbar
+        // offsetHeight as a safe upper bound for the chrome height.
+        const toolbar = document.querySelector('.lfb__toolbar');
+        const chrome = (toolbar ? toolbar.offsetHeight : 0) + 80;
+        const target = Math.max(0, gridTopDoc - chrome);
+        // Never scroll past the new document bottom — that's how footer-jumps
+        // happen. Take min with the genuine maxScroll as a final clamp.
+        const maxScroll = Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
+        const safeTarget = Math.min(target, maxScroll);
+        if (Math.abs(window.scrollY - safeTarget) > 2) {
+          window.scrollTo(0, safeTarget);
+        }
+        return;
+      }
+      // Grid missing entirely — last-resort clamp.
       const maxScroll = Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
       const target = Math.min(scrollBefore, maxScroll);
       if (Math.abs(window.scrollY - target) > 2) {
