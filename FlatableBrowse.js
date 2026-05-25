@@ -565,20 +565,23 @@
     // browser may auto-clamp scrollY, which feels like an unexpected jump.
     // We clamp ourselves to a sensible target so the user stays roughly where they were.
     const scrollBefore = window.scrollY;
-    // Scroll-anchor: capture the first card currently visible in the viewport
-    // plus its current Y offset. After reflow, scroll so the same card sits
-    // at the same offset — eliminates the jump-to-footer the user used to see
-    // when applyAll shrunk the document. Works regardless of how many cards
-    // hide/show as a result of the new map viewport.
-    const anchorBefore = (() => {
+    // Scroll-anchor: capture EVERY currently-viewport-visible card (in DOM
+    // order) plus its current Y offset. After reflow, pick the first one
+    // still on-screen and re-anchor to its old offset. Single-anchor capture
+    // failed when the chosen card was the one the filter pass hid — the
+    // fallback `Math.min(scrollBefore, maxScroll)` then clamped to the new
+    // document bottom (= footer). Holding a list of candidates means the
+    // anchor survives any filter outcome short of "every visible card hidden".
+    const anchorsBefore = (() => {
+      const out = [];
       const cards = $$('.' + CFG.dynItemClass + ':not([style*="display: none"]) ' + CFG.cardSelector);
       for (const c of cards) {
         const r = c.getBoundingClientRect();
         if (r.bottom > 0 && r.top < window.innerHeight) {
-          return { card: c, offsetTop: r.top };
+          out.push({ card: c, offsetTop: r.top });
         }
       }
-      return null;
+      return out;
     })();
     const isMobile = window.matchMedia && window.matchMedia('(max-width: 767px)').matches;
     // Bounds source priority:
@@ -644,15 +647,21 @@
     // back to clamping to the new max scroll (still better than letting the
     // browser auto-clamp to the new document bottom).
     requestAnimationFrame(() => {
-      if (anchorBefore && anchorBefore.card.isConnected &&
-          getComputedStyle(anchorBefore.card.parentElement || anchorBefore.card).display !== 'none') {
-        const newTop = anchorBefore.card.getBoundingClientRect().top;
-        const delta = newTop - anchorBefore.offsetTop;
+      // Walk the pre-reflow anchor list and use the first card that survived
+      // the filter pass (still connected, parent not display:none).
+      for (const a of anchorsBefore) {
+        const parent = a.card.parentElement || a.card;
+        if (!a.card.isConnected) continue;
+        if (getComputedStyle(parent).display === 'none') continue;
+        const newTop = a.card.getBoundingClientRect().top;
+        const delta = newTop - a.offsetTop;
         if (Math.abs(delta) > 1) {
           window.scrollBy({ top: delta, left: 0, behavior: 'auto' });
         }
         return;
       }
+      // No previously-visible card survived — fall back to clamping, but only
+      // shrink scroll if absolutely necessary so we never reach down to footer.
       const maxScroll = Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
       const target = Math.min(scrollBefore, maxScroll);
       if (Math.abs(window.scrollY - target) > 2) {
@@ -686,6 +695,13 @@
       if (!d.marker) return;
       d.marker.getElement().addEventListener('click', (e) => {
         e.stopPropagation();
+        // Mobile: markers are only visible while the search-area overlay is
+        // open; the card list is hidden behind it. Skip the scroll-to-card
+        // animation and go straight to the listing detail page instead.
+        if (window.matchMedia && window.matchMedia('(max-width: 767px)').matches && d.slug) {
+          window.location.href = '/flats/' + d.slug;
+          return;
+        }
         // Drop highlight from every marker so the previously-clicked one
         // doesn't stay orange. Touch devices never fire mouseleave on tap.
         clearAllMarkerHovers(data);
@@ -832,9 +848,25 @@
         case 'rent-desc':
           return (parseNum(getText(cb, 'rent-text')) || -Infinity) -
                  (parseNum(getText(ca, 'rent-text')) || -Infinity);
-        case 'movein':
-          return (parseDate(getText(ca, 'available-from-text')) || Infinity) -
-                 (parseDate(getText(cb, 'available-from-text')) || Infinity);
+        case 'movein': {
+          // Future move-in dates first (soonest first). Past dates sink to the
+          // bottom — among themselves ordered most-recently-past first so the
+          // freshly-stale listings sit above the truly-old ones.
+          const now = Date.now();
+          const da = parseDate(getText(ca, 'available-from-text'));
+          const db = parseDate(getText(cb, 'available-from-text'));
+          const aMissing = !da || isNaN(da);
+          const bMissing = !db || isNaN(db);
+          if (aMissing && bMissing) return 0;
+          if (aMissing) return 1;
+          if (bMissing) return -1;
+          const aPast = da < now;
+          const bPast = db < now;
+          if (aPast && !bPast) return 1;
+          if (!aPast && bPast) return -1;
+          if (aPast && bPast) return db - da; // newer past first
+          return da - db;                     // soonest future first
+        }
         case 'room-asc':
           return (parseNum(getText(ca, 'max-occupancy')) || Infinity) -
                  (parseNum(getText(cb, 'max-occupancy')) || Infinity);
@@ -1514,6 +1546,9 @@
       'box-shadow:none!important;transform:none!important;z-index:100!important}',
       '.lfb__toolbar #lfb-search-wrap{flex:1 0 100%!important;order:0!important;',
       'width:100%!important;max-width:100%!important}',
+      // iOS Safari auto-zooms on focus when an input's computed font-size is
+      // below 16px. Force 16px on the search input so the viewport stays put.
+      '.lfb__search-input{font-size:16px!important}',
       '.lfb__toolbar #lfb-filters-btn,.lfb__toolbar #lfb-saved-btn,.lfb__toolbar #lfb-sort-btn{',
       'flex:1 1 0!important;order:1!important;justify-content:center!important;',
       'min-width:0!important;min-height:44px!important;padding:6px 10px!important;',
@@ -1562,19 +1597,27 @@
       'box-shadow:0 12px 24px rgba(255,94,58,.42);border:0;font-size:16px;cursor:pointer;',
       'font-family:inherit}',
       'body.lf-search-overlay-open .lf-search-action-bar{display:block}',
-      // Close × — flex-centered glyph so it sits dead-centre in the circle.
+      // Close × — top-LEFT of the overlay map; flex-centered glyph.
       '.lf-search-cancel{display:none;position:fixed;',
-      'top:calc(var(--lf-search-overlay-map-top,140px) + 12px);right:22px;',
+      'top:calc(var(--lf-search-overlay-map-top,140px) + 12px);left:22px;',
       'width:36px;height:36px;border-radius:50%;background:rgba(255,255,255,.95);',
       'border:0;z-index:251;font-size:20px;line-height:1;cursor:pointer;color:#5a3f33;',
       'box-shadow:0 4px 12px rgba(0,0,0,.18);font-family:inherit;padding:0;',
       'align-items:center;justify-content:center}',
       'body.lf-search-overlay-open .lf-search-cancel{display:flex}',
-      // Pill below search input when bounds are set.
+      // Pill row — full-width flex item so it forces the Filters/Saved/Sort
+      // buttons onto a third row beneath it. The visible pill itself stays
+      // compact (left-aligned within the row).
+      '.lf-search-pill-row{flex:1 0 100%!important;order:1!important;',
+      'display:flex!important;align-items:center!important;',
+      'padding:0 12px!important;margin:2px 0 0!important}',
+      // Bump button order to 2 so they always render after the pill row.
+      '.lfb__toolbar #lfb-filters-btn,.lfb__toolbar #lfb-saved-btn,.lfb__toolbar #lfb-sort-btn{order:2!important}',
+      // Pill itself — compact orange chip with text + ×.
       '.lf-search-pill{display:inline-flex;align-items:center;gap:6px;',
       'background:#fff;border:1px solid #ff5e3a;border-radius:999px;',
-      'padding:6px 6px 6px 14px;margin:6px 12px 4px;font-size:13px;color:#ff5e3a;',
-      'font-weight:500;cursor:pointer;align-self:flex-start}',
+      'padding:6px 6px 6px 14px;font-size:13px;color:#ff5e3a;',
+      'font-weight:500;cursor:pointer}',
       '.lf-search-pill__text{flex:0 1 auto}',
       '.lf-search-pill__close{background:none;border:0;color:#ff5e3a;font-size:18px;',
       'cursor:pointer;padding:0 8px;line-height:1;font-family:inherit}',
@@ -1662,9 +1705,9 @@
   const renderSearchPill = (data) => {
     const wrap = document.getElementById('lfb-search-wrap');
     if (!wrap) return;
-    const existing = document.getElementById('lf-search-pill');
+    const existingRow = document.getElementById('lf-search-pill-row');
     if (!state.searchBounds) {
-      if (existing) existing.remove();
+      if (existingRow) existingRow.remove();
       return;
     }
     const b = state.searchBounds;
@@ -1673,10 +1716,16 @@
     ).length;
     const cityName = nearestCityName((b.west + b.east) / 2, (b.south + b.north) / 2);
     const label = '📍 Around ' + cityName + ' — ' + count + ' flat' + (count === 1 ? '' : 's');
-    if (existing) {
-      existing.querySelector('.lf-search-pill__text').textContent = label;
+    if (existingRow) {
+      const t = existingRow.querySelector('.lf-search-pill__text');
+      if (t) t.textContent = label;
       return;
     }
+    // Row wrapper takes the full toolbar width so Filters/Saved/Sort drop onto
+    // a separate line below; pill itself stays a compact orange chip inside.
+    const row = document.createElement('div');
+    row.id = 'lf-search-pill-row';
+    row.className = 'lf-search-pill-row';
     const pill = document.createElement('div');
     pill.id = 'lf-search-pill';
     pill.className = 'lf-search-pill';
@@ -1690,7 +1739,8 @@
     close.setAttribute('aria-label', 'Clear search area');
     close.textContent = '×';
     pill.appendChild(close);
-    wrap.insertAdjacentElement('afterend', pill);
+    row.appendChild(pill);
+    wrap.insertAdjacentElement('afterend', row);
     text.addEventListener('click', () => openSearchOverlay());
     close.addEventListener('click', (e) => {
       e.stopPropagation();
@@ -1860,6 +1910,9 @@
       // Restore last-used mobile search area so the card list opens already
       // narrowed (with a pill in the search bar).
       state.searchBounds = readPersistedSearchArea();
+      // Default sort on every fresh boot: Move-in soonest, past dates last.
+      // Sort isn't persisted across sessions, so this runs unconditionally.
+      applySort('movein');
       onChange();
 
       wireSearch(map);
