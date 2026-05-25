@@ -480,6 +480,10 @@
   // === Boot ===
   const boot = () => {
     injectCss();
+    // Hero heart styles live inside the apply-modal CSS bundle; inject up-front
+    // so the heart is sized correctly on first paint (it's created in wireHeroHeart
+    // before the modal is ever opened).
+    injectApplyModalCss();
     hideHeroAgeRangeIfEmpty();
     hideEmptyHeroFacts();
     handleAboutCard();
