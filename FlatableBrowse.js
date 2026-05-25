@@ -224,6 +224,51 @@
     });
   };
 
+  // === Tag emoji map (must stay in sync with FlatableDetail.js) ===
+  const TAG_EMOJI = {
+    'wi-fi': '📶', 'wifi': '📶', 'parking': '🚗', 'laundry room': '🧺',
+    'balcony': '☀️', 'garden': '🌿', 'smoking allowed': '🚬', 'no smoking': '🚭',
+    'dishwasher': '🍽️', 'elevator': '🛗', 'pet allowed': '🐾', 'pets allowed': '🐾',
+    'gym': '🏋️', 'pool': '🏊', 'air conditioning': '❄️', 'heating': '🔥',
+    'furnished': '🛋️', 'washer': '🧺', 'dryer': '🌬️', 'tv': '📺',
+    'workspace': '💻', 'bike storage': '🚲', 'storage': '📦', 'fireplace': '🪵',
+    'rooftop': '🏙️', 'terrace': '🌇', 'wheelchair accessible': '♿',
+    'calm weekdays, social weekends': '🌗', 'calm weekdays': '🌅',
+    'social weekends': '🎉', 'quiet & peaceful': '🤫', 'quiet': '🤫',
+    'party-friendly': '🥳', 'lgbtq+ friendly': '🏳️‍🌈', 'study-focused': '📚',
+    'creative': '🎨', 'fitness': '💪', 'outdoorsy': '🏞️', 'minimalist': '🧘',
+    'cozy': '🛋️', 'modern': '✨', 'family-friendly': '👨‍👩‍👧',
+    'eco-friendly': '🌱', 'student-friendly': '🎓',
+    'easy-going': '😎', 'easygoing': '😎', 'tidy': '✨', 'reliable': '🤝',
+    'flexible schedule': '🕐', 'pet lover': '🐾', 'cooking enthusiast': '🍳',
+    'early bird': '🌅', 'night owl': '🦉', 'introvert': '🤓', 'extrovert': '🎤',
+    'organized': '📋', 'foodie': '🍴', 'adventurous': '🧗', 'sporty': '⚽',
+    'bookworm': '📖', 'music lover': '🎵', 'gamer': '🎮', 'traveler': '✈️',
+    'spontaneous': '💫', 'punctual': '⏰', 'communicative': '💬'
+  };
+  const emojiFor = (text) => {
+    const key = (text || '').trim().toLowerCase();
+    if (!key) return null;
+    if (TAG_EMOJI[key]) return TAG_EMOJI[key];
+    const first = key.split(/[\s,]+/)[0];
+    return TAG_EMOJI[first] || '✨';
+  };
+  // Walk every browse card chip once and prepend an emoji span.
+  // The chips are written by FlatableChipSplitter; we re-run after it on boot.
+  const decorateCardChips = () => {
+    document.querySelectorAll('.lfb__card__tag').forEach((chip) => {
+      if (chip.querySelector('.lf-chip__emoji')) return;
+      const original = chip.textContent.trim();
+      if (!original) return;
+      const emoji = emojiFor(original);
+      if (!emoji) return;
+      const span = document.createElement('span');
+      span.className = 'lf-chip__emoji';
+      span.textContent = emoji;
+      chip.insertBefore(span, chip.firstChild);
+    });
+  };
+
   // Wire the existing heart icon on each browse card to toggle saved state.
   // The heart element comes from Webflow as `.lfb__card__heart-1.w-button` (an
   // anchor). We hijack its click, persist the slug in localStorage, and toggle
@@ -277,6 +322,12 @@
       btn.classList.toggle('is-active', state.savedOnly);
       if (applyFn) applyFn();
       scrollResultsToTop();
+      // The results grid height just changed; nudge MapLibre to re-measure so
+      // the map canvas doesn't drift relative to the toolbar.
+      const ml = window.LfbB && window.LfbB.map;
+      if (ml && typeof ml.resize === 'function') {
+        requestAnimationFrame(() => ml.resize());
+      }
     });
   };
 
@@ -332,6 +383,36 @@
   };
   let SAVED = readSavedSet();
 
+  // === 6c. FILTER STATE PERSISTENCE ===
+  // Persist filter state so Skip→/browse-flats restores the same view the user
+  // left mid-flow. Saved/restored on every change.
+  const FILTER_KEY = 'flatable.browseFilters';
+  const readPersistedFilters = () => {
+    try {
+      const raw = localStorage.getItem(FILTER_KEY);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      return parsed && typeof parsed === 'object' ? parsed : null;
+    } catch (e) {
+      return null;
+    }
+  };
+  const writePersistedFilters = (state) => {
+    try {
+      localStorage.setItem(FILTER_KEY, JSON.stringify({
+        rentMin: state.rentMin, rentMax: state.rentMax,
+        sizeMin: state.sizeMin, sizeMax: state.sizeMax,
+        from: state.from, until: state.until,
+        type: state.type, furn: state.furn,
+        occMin: state.occMin, occMax: state.occMax,
+        ageMin: state.ageMin, ageMax: state.ageMax,
+        gender: state.gender, student: state.student,
+        amen: state.amen.slice(), lang: state.lang.slice(),
+        savedOnly: state.savedOnly
+      }));
+    } catch (e) { /* localStorage unavailable */ }
+  };
+
   // === 7. CARDS HIDE/REFLOW ===
   const matchesFilters = (d, state) => {
     if (state.savedOnly && !(d.slug && SAVED.has(d.slug))) return false;
@@ -371,6 +452,11 @@
 
   const applyAll = (map, data, state) => {
     if (!map) return;
+    // Preserve scroll position across this layout pass. When filters/viewport
+    // change drastically (most cards hidden) the document height shrinks and the
+    // browser may auto-clamp scrollY, which feels like an unexpected jump.
+    // We clamp ourselves to a sensible target so the user stays roughly where they were.
+    const scrollBefore = window.scrollY;
     const bounds = map.getBounds();
     const visibleSlugs = [];
     data.forEach(d => {
@@ -406,6 +492,21 @@
         ts: Date.now()
       }));
     } catch (e) { /* localStorage unavailable; skip persistence */ }
+
+    // Snapshot the active filter state on every layout change. Skip-back from a
+    // detail page rebuilds /browse-flats; we want that boot to restore here.
+    writePersistedFilters(state);
+
+    // Re-anchor scroll after the layout settles. If the document height now
+    // can't reach the previous scrollY, the browser would clamp us to the new
+    // bottom — pin to a safe upper bound so we don't appear to teleport to the footer.
+    requestAnimationFrame(() => {
+      const maxScroll = Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
+      const target = Math.min(scrollBefore, maxScroll);
+      if (Math.abs(window.scrollY - target) > 2) {
+        window.scrollTo(0, target);
+      }
+    });
   };
 
   // === 8. CLICK SCROLL + PULSE ===
@@ -817,6 +918,8 @@
 
     // ───── Combobox (multi-select with type-ahead) ─────
     const renderComboChips = (comboWrap) => {
+      // Exposed via panel._renderComboChips so restorePersistedFilters can repaint
+      // multi-select chip groups from the persisted state on boot/bfcache.
       const key = comboWrap.dataset.cbKey;
       const chips = comboWrap.querySelector('.lfb__cb__chips');
       while (chips.firstChild) chips.removeChild(chips.firstChild);
@@ -950,8 +1053,77 @@
       });
       panel.querySelectorAll('.lfb__cb').forEach(renderComboChips);
       updateMoveOutVisibility();
+      // Reset clears all persisted filters too.
+      try { localStorage.removeItem(FILTER_KEY); } catch (e) { /* */ }
       onChange();
     });
+
+    // Expose the chip renderer so restorePersistedFilters can repaint multi-select groups.
+    panel._renderComboChips = renderComboChips;
+    panel._updateMoveOutVisibility = updateMoveOutVisibility;
+  };
+
+  // Push a persisted filter snapshot back into the live `state` object, the
+  // form inputs in the filter panel, and the chip-selection UI. Called once
+  // on boot (and again on bfcache restore) so the user sees what they left.
+  const restorePersistedFilters = (panel, state) => {
+    const saved = readPersistedFilters();
+    if (!saved) return false;
+    // 1. State object.
+    [
+      'rentMin','rentMax','sizeMin','sizeMax','from','until',
+      'type','furn','occMin','occMax','ageMin','ageMax',
+      'gender','student','savedOnly'
+    ].forEach(k => { if (saved[k] !== undefined) state[k] = saved[k]; });
+    if (Array.isArray(saved.amen)) state.amen = saved.amen.slice();
+    if (Array.isArray(saved.lang)) state.lang = saved.lang.slice();
+
+    // 2. Numeric inputs.
+    const setIf = (id, val) => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.value = val == null ? '' : String(val);
+    };
+    setIf('lfb-f-rmin', state.rentMin);
+    setIf('lfb-f-rmax', state.rentMax);
+    setIf('lfb-f-szmin', state.sizeMin);
+    setIf('lfb-f-szmax', state.sizeMax);
+    setIf('lfb-f-omin', state.occMin);
+    setIf('lfb-f-omax', state.occMax);
+    setIf('lfb-f-amin', state.ageMin);
+    setIf('lfb-f-amax', state.ageMax);
+
+    // 3. Date inputs (state stores epoch ms; input wants yyyy-mm-dd).
+    const toDateInputValue = (ms) => {
+      if (!ms) return '';
+      const d = new Date(ms);
+      const pad = (n) => String(n).padStart(2, '0');
+      return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+    };
+    setIf('lfb-f-from', toDateInputValue(state.from));
+    setIf('lfb-f-until', toDateInputValue(state.until));
+
+    // 4. Single-value chip groups (type, furn, gender, student).
+    [['type', state.type], ['furn', state.furn], ['gender', state.gender], ['student', state.student]]
+      .forEach(([k, v]) => {
+        const group = panel.querySelector('[data-f="' + k + '"]');
+        if (!group) return;
+        $$('.lfb__fp__ch', group).forEach(c => c.classList.toggle('act', c.dataset.v === v));
+      });
+
+    // 5. Multi-value chip groups (amen, lang) use the combobox renderer.
+    if (typeof panel._renderComboChips === 'function') {
+      panel.querySelectorAll('.lfb__cb').forEach(panel._renderComboChips);
+    }
+    if (typeof panel._updateMoveOutVisibility === 'function') {
+      panel._updateMoveOutVisibility();
+    }
+
+    // 6. Saved-only toolbar button visual state.
+    const sb = document.getElementById('lfb-saved-btn');
+    if (sb) sb.classList.toggle('is-active', !!state.savedOnly);
+
+    return true;
   };
 
   // === 12. SEARCH GEOCODING ===
@@ -1040,6 +1212,14 @@
       // Active state for Saved toolbar button mirrors marker-hover pill style.
       '#lfb-saved-btn.is-active{background:linear-gradient(135deg,#ff8b3d,#ff5e3a)!important;color:#fff!important;border-color:transparent!important}',
       '#lfb-saved-btn.is-active svg{stroke:#fff!important}',
+      // Browse card vibe/trait chips — orange gradient + white text + emoji prefix.
+      '.lfb__card__tag{background:linear-gradient(135deg,#ff8b3d,#ff5e3a)!important;',
+      'color:#fff!important;border-color:transparent!important;display:inline-flex;',
+      'align-items:center;gap:6px;padding:4px 10px;border-radius:999px;font-weight:500}',
+      '.lfb__card__tag .lf-chip__emoji{font-size:1em;line-height:1;flex:0 0 auto}',
+      // Tenancy/permanent tag on browse card: orange outline, transparent fill.
+      '.lfb__card__perm-tag{background:transparent!important;background-color:transparent!important;',
+      'border:1px solid #ff5e3a!important;color:#ff5e3a!important;font-weight:600}',
       '.lfb__fp{position:fixed;inset:0;z-index:1100;display:none}',
       '.lfb__fp.open{display:block}',
       '.lfb__fp__bg{position:absolute;inset:0;background:rgba(20,16,12,.4)}',
@@ -1137,16 +1317,37 @@
       placeMarkers(map, data);
       wireCardLinks(data);
       wireClickScroll(data);
+      // The chip splitter runs at body bottom and writes chips into cards.
+      // Decorate after a microtask so we run after its initial pass.
+      requestAnimationFrame(decorateCardChips);
 
       const onChange = () => applyAll(map, data, state);
       window.LfbApply = onChange;
       wireSavedHearts(data, onChange);
       wireSavedToggle(state, onChange);
       map.on('moveend', onChange);
-      onChange();
 
       wireFilterPanel(panel, state, onChange);
+      // Restore any persisted filter state BEFORE the first applyAll so the
+      // user lands where they left off (e.g. after Skip → back to /browse-flats).
+      restorePersistedFilters(panel, state);
+      onChange();
+
       wireSearch(map);
+
+      // Re-sync browse card hearts whenever the page is restored from bfcache
+      // (browser back from a detail page). The user may have hearted a flat on
+      // that page and the localStorage set is now ahead of what's painted here.
+      window.addEventListener('pageshow', (e) => {
+        if (!e.persisted) return;
+        SAVED = readSavedSet();
+        data.forEach(d => {
+          if (!d.slug) return;
+          const heart = d.card.querySelector('.lfb__card__heart-1');
+          if (heart) heart.classList.toggle('is-saved', SAVED.has(d.slug));
+        });
+        onChange();
+      });
     });
 
     wireFooterRelease();

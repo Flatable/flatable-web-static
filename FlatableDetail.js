@@ -39,11 +39,74 @@
     const css = [
       '.lfg22__hh-facts{display:flex;flex-wrap:wrap;gap:24px 32px;align-items:flex-start}',
       '.lfg22__hh-fact{min-width:0}',
+      // Vertically center the gender icon/number triplets — they were sitting on the
+      // top border because the row defaults to align-items: flex-start.
+      '.lfg22__hh-gender{display:flex;align-items:center;gap:14px}',
+      '.lfg22__hh-g{display:inline-flex;align-items:center;gap:6px;line-height:1}',
+      '.lfg22__hh-g-num,.lfg22__hh-g-numv{margin:0;display:inline-flex;align-items:center;line-height:1}',
+      // Tenancy badge — orange outline only, no fill.
+      '.lfh15__badge{background:transparent!important;background-color:transparent!important;',
+        'border:1px solid #ff5e3a!important;color:#ff5e3a!important;font-weight:600}',
+      // Tag chips on detail page — orange gradient + white text (match map marker hover).
+      '.lfg22__chip{background:linear-gradient(135deg,#ff8b3d,#ff5e3a)!important;',
+        'color:#fff!important;border-color:transparent!important;display:inline-flex;',
+        'align-items:center;gap:6px}',
+      '.lfg22__chip .lf-chip__emoji{font-size:1em;line-height:1;flex:0 0 auto}'
     ].join('');
     const s = document.createElement('style');
     s.id = 'lfb-detail-css';
     s.textContent = css;
     document.head.appendChild(s);
+  };
+
+  // === Emoji map for tag chips (shared across vibes / traits / amenities) ===
+  // Keys are lowercase chip text; lookups normalise trim+collapse spaces.
+  const TAG_EMOJI = {
+    // Amenities
+    'wi-fi': '📶', 'wifi': '📶', 'parking': '🚗', 'laundry room': '🧺',
+    'balcony': '☀️', 'garden': '🌿', 'smoking allowed': '🚬', 'no smoking': '🚭',
+    'dishwasher': '🍽️', 'elevator': '🛗', 'pet allowed': '🐾', 'pets allowed': '🐾',
+    'gym': '🏋️', 'pool': '🏊', 'air conditioning': '❄️', 'heating': '🔥',
+    'furnished': '🛋️', 'washer': '🧺', 'dryer': '🌬️', 'tv': '📺',
+    'workspace': '💻', 'bike storage': '🚲', 'storage': '📦', 'fireplace': '🪵',
+    'rooftop': '🏙️', 'terrace': '🌇', 'wheelchair accessible': '♿',
+    // Vibes
+    'calm weekdays, social weekends': '🌗', 'calm weekdays': '🌅',
+    'social weekends': '🎉', 'quiet & peaceful': '🤫', 'quiet': '🤫',
+    'party-friendly': '🥳', 'lgbtq+ friendly': '🏳️‍🌈', 'study-focused': '📚',
+    'creative': '🎨', 'fitness': '💪', 'outdoorsy': '🏞️', 'minimalist': '🧘',
+    'cozy': '🛋️', 'modern': '✨', 'family-friendly': '👨‍👩‍👧',
+    'eco-friendly': '🌱', 'student-friendly': '🎓',
+    // Traits
+    'easy-going': '😎', 'easygoing': '😎', 'tidy': '✨', 'reliable': '🤝',
+    'flexible schedule': '🕐', 'pet lover': '🐾', 'cooking enthusiast': '🍳',
+    'early bird': '🌅', 'night owl': '🦉', 'introvert': '🤓', 'extrovert': '🎤',
+    'organized': '📋', 'foodie': '🍴', 'adventurous': '🧗', 'sporty': '⚽',
+    'bookworm': '📖', 'music lover': '🎵', 'gamer': '🎮', 'traveler': '✈️',
+    'spontaneous': '💫', 'punctual': '⏰', 'communicative': '💬'
+  };
+  const emojiFor = (text) => {
+    const key = (text || '').trim().toLowerCase();
+    if (!key) return null;
+    if (TAG_EMOJI[key]) return TAG_EMOJI[key];
+    // Try a single-word fallback (e.g. "Wi-Fi 6" → "wi-fi").
+    const first = key.split(/[\s,]+/)[0];
+    return TAG_EMOJI[first] || '✨';
+  };
+
+  // Prepend an emoji span to every detail-page chip exactly once.
+  const decorateChips = () => {
+    document.querySelectorAll('.lfg22__chip').forEach((chip) => {
+      if (chip.querySelector('.lf-chip__emoji')) return;
+      const original = chip.textContent.trim();
+      if (!original) return;
+      const emoji = emojiFor(original);
+      if (!emoji) return;
+      const span = document.createElement('span');
+      span.className = 'lf-chip__emoji';
+      span.textContent = emoji;
+      chip.insertBefore(span, chip.firstChild);
+    });
   };
 
   // === 1. Hero "Age range" fact ===
@@ -494,7 +557,19 @@
     wireApplyButton();
     wireSkipButton();
     wireHeroHeart();
+    decorateChips();
   };
+
+  // bfcache: when the user hits back into a cached detail page, refresh the
+  // hero heart visual to match localStorage (state could have changed elsewhere).
+  window.addEventListener('pageshow', (e) => {
+    if (!e.persisted) return;
+    const heart = document.querySelector('.lf-hero-save');
+    if (!heart) return;
+    const slug = currentSlug();
+    const saved = readSaved();
+    heart.classList.toggle('is-saved', !!slug && saved.has(slug));
+  });
 
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', boot);
