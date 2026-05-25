@@ -78,6 +78,11 @@
       // "Bahnhofstrasse" never wrap or overflow the narrow viewport.
       '.lfh15__title{font-size:clamp(26px,8vw,44px)!important;line-height:1.1!important;',
       'word-break:break-word!important}',
+      // Tight hero→first-chapter gap (was 64px) so the page feels less airy
+      // at the top, but BIG between-chapter gap (was 20px) so About / Looking
+      // For / Household / Location read as distinct sections.
+      '.lfg22{padding-top:24px!important}',
+      '.lfg22__inner{row-gap:48px!important;gap:48px 72px!important}',
       '}',
       // Active carousel dash uses brand orange (overrides HeroSlider inline white).
       '.lfh15__photo-dot[aria-current="true"]{',
