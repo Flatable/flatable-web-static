@@ -409,7 +409,9 @@
   };
 
   const wireHeroHeart = () => {
-    const hero = document.querySelector('.lfh15') || document.querySelector('.lfh15__inner');
+    // Anchor on the photo container so the heart sits on the image, not the
+    // full-width hero band. Falls back to .lfh15 only if photo is missing.
+    const hero = document.querySelector('.lfh15__photo') || document.querySelector('.lfh15');
     if (!hero) return;
     if (hero.querySelector('.lf-hero-save')) return;
     const slug = currentSlug();
