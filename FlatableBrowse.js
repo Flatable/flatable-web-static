@@ -554,8 +554,14 @@
     const scrollBefore = window.scrollY;
     const bounds = map.getBounds();
     const visibleSlugs = [];
+    // On mobile the map shows all of Switzerland at a fixed zoom so the
+    // viewport bound check would never hide a flat anyway — but the
+    // map.on('moveend') hook still fires on tiny pans, which used to make the
+    // document height oscillate and trigger a browser scroll clamp the user
+    // perceived as "jumping to the footer". Skip the viewport gate on mobile.
+    const isMobile = window.matchMedia && window.matchMedia('(max-width: 767px)').matches;
     data.forEach(d => {
-      const inViewport = bounds.contains([d.lng, d.lat]);
+      const inViewport = isMobile ? true : bounds.contains([d.lng, d.lat]);
       const passesFilters = matchesFilters(d, state);
       // Card-side: only render cards whose marker is inside the current viewport
       // AND that match the user's filters.
@@ -642,13 +648,13 @@
         if (!t || t.offsetParent === null) return;
         const r = t.getBoundingClientRect();
         const vh = window.innerHeight;
-        const stickyOff = 180;
         const btmMargin = 16;
-        let needScroll = true;
-        let scY = 0;
-        if (r.top >= stickyOff && r.bottom <= vh - btmMargin) needScroll = false;
-        else if (r.top < stickyOff) scY = window.scrollY + (r.top - stickyOff - 16);
-        else scY = window.scrollY + (r.bottom - vh + btmMargin);
+        // Always anchor the card's bottom to the viewport bottom — same target
+        // regardless of whether the card is currently above or below. If the
+        // card is already there (within a 4px tolerance), skip the scroll.
+        const targetScY = Math.max(0, window.scrollY + (r.bottom - vh + btmMargin));
+        const needScroll = Math.abs(window.scrollY - targetScY) > 4;
+        const scY = targetScY;
 
         const pulse = () => {
           t.classList.remove('lfb__card--pulse');
