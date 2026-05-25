@@ -336,12 +336,15 @@
         'border-radius:14px;padding:14px 18px;text-decoration:none;font-weight:600;font-size:15px;',
         'transition:transform 120ms ease,box-shadow 120ms ease;',
         'flex:1 1 0;min-width:0;max-width:200px;box-sizing:border-box}',
-      // Mobile: stack the two store buttons vertically. Each shrinks to its
-      // content (auto width) and the inner meta column centres so the icon +
-      // text sit nicely in the middle of the pill.
+      // Mobile: stack the two store buttons vertically. inline-flex on the
+      // parent makes its width collapse to the widest child; align-items:
+      // stretch then forces every child to that same width — so App Store
+      // and Google Play end up identically wide regardless of label length.
       '@media (max-width:767px){',
-        '.lf-apply-modal__buttons{flex-direction:column!important;align-items:center!important}',
-        '.lf-apply-modal__btn{flex:0 0 auto!important;width:auto!important;max-width:100%!important;',
+        '.lf-apply-modal__buttons{display:inline-flex!important;flex-direction:column!important;',
+          'align-items:stretch!important;margin-left:auto!important;margin-right:auto!important;',
+          'width:auto!important;max-width:100%!important}',
+        '.lf-apply-modal__btn{flex:0 0 auto!important;width:auto!important;max-width:none!important;',
           'min-height:60px!important;justify-content:center!important;padding:14px 22px!important}',
         '.lf-apply-modal__btn-meta{align-items:flex-start!important}',
       '}',

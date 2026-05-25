@@ -598,12 +598,34 @@
     });
   };
 
+  // Re-arm Lenis (Webflow's smooth-scroll lib). Any interaction inside the
+  // map area triggers `data-lenis-prevent`, which on touch devices stops the
+  // global scroll until the next mouseleave — which never fires after a tap.
+  // Call this after every map-originated interaction so the scroll resumes.
+  const releaseLenis = () => {
+    try {
+      if (window.lenis && typeof window.lenis.start === 'function') window.lenis.start();
+    } catch (e) { /* lenis unavailable */ }
+  };
+
+  // Remove the hover/selected state from every marker. Used on click to make
+  // sure the previously-clicked marker doesn't stay highlighted.
+  const clearAllMarkerHovers = (data) => {
+    data.forEach(d => {
+      const el = d.marker && d.marker.getElement && d.marker.getElement();
+      if (el) el.classList.remove('lfb-mk--hover');
+    });
+  };
+
   // === 8. CLICK SCROLL + PULSE ===
   const wireClickScroll = (data) => {
     data.forEach(d => {
       if (!d.marker) return;
       d.marker.getElement().addEventListener('click', (e) => {
         e.stopPropagation();
+        // Drop highlight from every marker so the previously-clicked one
+        // doesn't stay orange. Touch devices never fire mouseleave on tap.
+        clearAllMarkerHovers(data);
         const t = d.card;
         if (!t || t.offsetParent === null) return;
         const r = t.getBoundingClientRect();
@@ -623,7 +645,7 @@
           setTimeout(() => t.classList.remove('lfb__card--pulse'), CFG.pulseDuration + 100);
         };
 
-        if (!needScroll) { pulse(); return; }
+        if (!needScroll) { pulse(); releaseLenis(); return; }
         let done = false;
         const onEnd = () => {
           if (done) return;
@@ -631,6 +653,8 @@
           window.removeEventListener('scrollend', onEnd);
           clearTimeout(fallback);
           setTimeout(pulse, 80);
+          // Restart Lenis so the user can scroll again after the smooth scroll.
+          releaseLenis();
         };
         window.addEventListener('scrollend', onEnd, { once: true });
         const fallback = setTimeout(onEnd, 800);
@@ -778,7 +802,13 @@
       menu.classList.toggle('open');
     });
     document.addEventListener('click', (e) => {
-      if (!menu.contains(e.target) && !btn.contains(e.target)) menu.classList.remove('open');
+      if (!menu.contains(e.target) && !btn.contains(e.target)) {
+        if (menu.classList.contains('open')) {
+          menu.classList.remove('open');
+          // Tap-outside closes the menu — make sure Lenis is running again.
+          releaseLenis();
+        }
+      }
     });
     menu.addEventListener('click', (e) => {
       const b = e.target.closest('[data-sort]');
@@ -789,6 +819,8 @@
       $$('button', menu).forEach(c => c.classList.toggle('sel', c === b));
       const sp = btn.querySelector('span');
       if (sp) sp.textContent = b.textContent;
+      // Applying a sort can otherwise leave Lenis stopped on touch devices.
+      releaseLenis();
     });
     const def = menu.querySelector('[data-sort="movein"]');
     if (def) def.classList.add('sel');
@@ -1414,8 +1446,8 @@
       'top:var(--lf-sticky-toolbar-top,80px)!important;left:auto!important;',
       'right:auto!important;width:100%!important;display:flex!important;flex-wrap:wrap!important;',
       'gap:8px!important;padding:12px!important;box-sizing:border-box!important;',
-      'background:#fff!important;border-bottom:1px solid #ece8df!important;transform:none!important;',
-      'z-index:100!important}',
+      'background:#fff!important;border:0!important;border-bottom:0!important;',
+      'box-shadow:none!important;transform:none!important;z-index:100!important}',
       '.lfb__toolbar #lfb-search-wrap{flex:1 0 100%!important;order:0!important;',
       'width:100%!important;max-width:100%!important}',
       '.lfb__toolbar #lfb-filters-btn,.lfb__toolbar #lfb-saved-btn,.lfb__toolbar #lfb-sort-btn{',
