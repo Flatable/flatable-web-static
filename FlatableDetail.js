@@ -324,10 +324,14 @@
       '.lf-apply-modal__title{font-size:26px;font-weight:700;line-height:1.2;margin:0 0 12px;color:#231510}',
       '.lf-apply-modal__sub{font-size:15px;line-height:1.5;margin:0 0 24px;color:#5a3f33}',
       '.lf-apply-modal__sub strong{color:#ff5e3a;font-variant-numeric:tabular-nums}',
+      // Equal-width store buttons (desktop + mobile). Both flex:1 with same
+      // max so the App Store and Google Play pills mirror each other.
       '.lf-apply-modal__buttons{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin-bottom:16px}',
-      '.lf-apply-modal__btn{display:inline-flex;align-items:center;gap:8px;background:#000;color:#fff;',
+      '.lf-apply-modal__btn{display:inline-flex;align-items:center;justify-content:flex-start;',
+        'gap:8px;background:#000;color:#fff;',
         'border-radius:14px;padding:14px 18px;text-decoration:none;font-weight:600;font-size:15px;',
-        'transition:transform 120ms ease,box-shadow 120ms ease}',
+        'transition:transform 120ms ease,box-shadow 120ms ease;',
+        'flex:1 1 0;min-width:0;max-width:200px;box-sizing:border-box}',
       '.lf-apply-modal__btn:hover{transform:translateY(-1px);box-shadow:0 8px 18px rgba(0,0,0,0.18)}',
       '.lf-apply-modal__btn svg{width:22px;height:22px;flex:0 0 22px;fill:currentColor}',
       '.lf-apply-modal__btn-meta{display:flex;flex-direction:column;align-items:flex-start;line-height:1.1}',

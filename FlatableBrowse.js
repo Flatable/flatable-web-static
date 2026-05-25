@@ -1365,26 +1365,33 @@
       'font-family:inherit}',
       '.lfb__cb__item:hover{background:#fffaf2}',
       // === MOBILE (≤767px) — scoped overrides ONLY. Desktop untouched. ===
+      // Sticky stack (from top): header → toolbar (search + buttons) → map.
+      // JS sets --lf-sticky-toolbar-top + --lf-sticky-map-top from real
+      // measurements so the stack stays correct if the header height changes.
       '@media (max-width:767px){',
-      // Single-column main: toolbar (moved by JS) → map (sticky top) → cards
+      // Pin the Webflow mobile header at the top so the toolbar and map sit beneath it.
+      '.nav_mobile_wrap{position:sticky!important;top:0!important;z-index:120!important;',
+      'background:#fff!important}',
       'section.lfb__main{display:block!important}',
-      // Map: full width, sticky to viewport top, sensible height
-      'aside.lfb__map{position:sticky!important;top:0!important;left:0!important;',
-      'width:100%!important;height:40vh!important;max-height:380px!important;z-index:5!important;',
+      // Map: full width, sticky below the toolbar, half the previous height.
+      'aside.lfb__map{position:sticky!important;',
+      'top:var(--lf-sticky-map-top,180px)!important;left:0!important;',
+      'width:100%!important;height:20vh!important;max-height:200px!important;z-index:80!important;',
       'margin:0!important}',
       '#' + CFG.mapMountId + ',.lfb__map-mount{height:100%!important;width:100%!important}',
-      // Cards grid: single column, full width
+      // Cards grid: single column, full width.
       '.lfb__grid,.w-dyn-list .w-dyn-items{grid-template-columns:1fr!important;',
       'display:grid!important;gap:16px!important;padding:12px!important;width:100%!important;',
       'box-sizing:border-box!important}',
       '.lfb__card-1,.w-dyn-item{width:100%!important;max-width:100%!important;',
       'min-width:0!important;box-sizing:border-box!important}',
-      // Toolbar: full-width, two rows (search full row, buttons row).
-      // Override the desktop fixed positioning from FlatableBrowseMapStage10.
-      '.lfb__toolbar{position:relative!important;top:auto!important;left:auto!important;',
+      // Toolbar: full-width, two rows (search full row, buttons row), sticky below header.
+      '.lfb__toolbar{position:sticky!important;',
+      'top:var(--lf-sticky-toolbar-top,80px)!important;left:auto!important;',
       'right:auto!important;width:100%!important;display:flex!important;flex-wrap:wrap!important;',
       'gap:8px!important;padding:12px!important;box-sizing:border-box!important;',
-      'background:#fff!important;border-bottom:1px solid #ece8df!important;transform:none!important}',
+      'background:#fff!important;border-bottom:1px solid #ece8df!important;transform:none!important;',
+      'z-index:100!important}',
       '.lfb__toolbar #lfb-search-wrap{flex:1 0 100%!important;order:0!important;',
       'width:100%!important;max-width:100%!important}',
       '.lfb__toolbar #lfb-filters-btn,.lfb__toolbar #lfb-saved-btn,.lfb__toolbar #lfb-sort-btn{',
@@ -1425,10 +1432,28 @@
     const toolbar = document.querySelector('.lfb__toolbar');
     const mapAside = document.querySelector('aside.lfb__map');
     if (!main || !toolbar || !mapAside) return;
-    // Only move if not already the previous sibling of the map.
     if (toolbar.parentNode !== main || toolbar.nextElementSibling !== mapAside) {
       main.insertBefore(toolbar, mapAside);
     }
+    updateMobileStickyOffsets();
+    // Re-measure whenever orientation/resize changes the header or toolbar height.
+    window.addEventListener('resize', updateMobileStickyOffsets, { passive: true });
+    // And once after fonts/images settle so the first paint is accurate.
+    window.setTimeout(updateMobileStickyOffsets, 400);
+  };
+
+  // Stack the sticky offsets so header → toolbar → map land exactly beneath
+  // each other regardless of the actual header/toolbar height the breakpoint
+  // produces. CSS vars are used by the @media rules above.
+  const updateMobileStickyOffsets = () => {
+    if (!window.matchMedia('(max-width: 767px)').matches) return;
+    const header = document.querySelector('.nav_mobile_wrap');
+    const toolbar = document.querySelector('.lfb__toolbar');
+    if (!toolbar) return;
+    const headerH = header ? header.offsetHeight : 64;
+    const toolbarH = toolbar.offsetHeight || 110;
+    document.documentElement.style.setProperty('--lf-sticky-toolbar-top', headerH + 'px');
+    document.documentElement.style.setProperty('--lf-sticky-map-top', (headerH + toolbarH) + 'px');
   };
 
   const boot = async () => {
