@@ -60,29 +60,38 @@
     injectStyles();
   }
 
-  // Mobile menu (hamburger drawer): also add a Browse Flats item there, since
-  // FlatableNavBrowse's main job is to surface the CTA everywhere. Centered
-  // alongside the rest of the menu via the injected styles below.
+  // Mobile menu (hamburger drawer): inject Browse Flats right ABOVE the
+  // Download pill, cloning the Download li so the new entry inherits the same
+  // pill width + Webflow variant styling.
   function injectMobileMenuItem() {
-    var menus = document.querySelectorAll('.nav_mobile_menu_wrap .nav_links_wrap');
-    menus.forEach(function (ul) {
-      if (ul.querySelector('[' + MARKER + '="browse"]')) return;
-      // Clone the Home link as a template so we inherit Webflow's nav_links_link styling.
-      var template = ul.querySelector('.nav_links_item');
-      if (!template) return;
-      var item = template.cloneNode(true);
-      item.setAttribute(MARKER, 'browse');
-      // Strip any sub-dropdown markup the template might have had.
-      while (item.firstChild) item.removeChild(item.firstChild);
-      var a = document.createElement('a');
-      a.href = TARGET_HREF;
-      a.className = 'nav_links_link w-inline-block';
-      var span = document.createElement('div');
-      span.className = 'nav_links_text';
-      span.textContent = LABEL;
-      a.appendChild(span);
-      item.appendChild(a);
-      ul.insertBefore(item, ul.firstChild);
+    var menus = document.querySelectorAll('.nav_mobile_menu_wrap');
+    menus.forEach(function (menu) {
+      if (menu.querySelector('[' + MARKER + '="browse"]')) return;
+      var download = menu.querySelector('.nav_buttons_item.is-main');
+      if (!download) return;
+      var clone = download.cloneNode(true);
+      clone.setAttribute(MARKER, 'browse');
+      var btnWrap = clone.querySelector('.button_main_wrap');
+      if (btnWrap) {
+        btnWrap.removeAttribute('data-app-download');
+        btnWrap.setAttribute('data-flatable-nav-target', 'browse');
+      }
+      var link = clone.querySelector('a.clickable_link');
+      if (link) {
+        link.setAttribute('href', TARGET_HREF);
+        link.removeAttribute('target');
+      }
+      var btn = clone.querySelector('button.clickable_btn');
+      if (btn) {
+        btn.addEventListener('click', function (e) {
+          e.preventDefault();
+          window.location.href = TARGET_HREF;
+        });
+      }
+      clone.querySelectorAll('.button_main_text, .button_eye_text, .clickable_text').forEach(function (el) {
+        el.textContent = LABEL;
+      });
+      download.parentNode.insertBefore(clone, download);
     });
   }
 
@@ -96,12 +105,19 @@
     s.id = 'lf-nav-browse-css';
     s.textContent = [
       'li[' + MARKER + '="' + MARKER_VALUE + '"]{margin-right:10px}',
-      'li[' + MARKER + '="' + MARKER_VALUE + '"] .button_main_wrap{',
+      // Webflow paints the visible pill background via `.button_main_element`
+      // (the inner element with a black `color(srgb 0.09 ...)` fill). Override
+      // both the wrap and the element so the orange gradient is what shows.
+      'li[' + MARKER + '="' + MARKER_VALUE + '"] .button_main_wrap,',
+      'li[' + MARKER + '="' + MARKER_VALUE + '"] .button_main_element{',
         'background:linear-gradient(135deg,#ff8b3d,#ff5e3a)!important;',
+        'background-color:transparent!important;',
+        'background-image:linear-gradient(135deg,#ff8b3d,#ff5e3a)!important;',
         'border-color:transparent!important;color:#fff!important}',
       'li[' + MARKER + '="' + MARKER_VALUE + '"] .button_main_text,',
       'li[' + MARKER + '="' + MARKER_VALUE + '"] .button_eye_text{color:#fff!important}',
-      'li[' + MARKER + '="' + MARKER_VALUE + '"] .button_main_wrap:hover{',
+      'li[' + MARKER + '="' + MARKER_VALUE + '"] .button_main_wrap:hover,',
+      'li[' + MARKER + '="' + MARKER_VALUE + '"] .button_main_element:hover{',
         'filter:brightness(1.05)}',
       // === MOBILE (≤767px) — center every entry in the hamburger drawer
       // (nav links, the Services dropdown toggle, and the Download CTA), and
