@@ -74,8 +74,7 @@
       '.lfh15-facts{display:grid!important;grid-template-columns:1fr 1fr!important;',
       'gap:16px 12px!important;width:100%!important;align-items:start!important}',
       '.lfh15-fact{width:auto!important;min-width:0!important}',
-      '}'
-    ].join('');
+      '}',
       // Active carousel dash uses brand orange (overrides HeroSlider inline white).
       '.lfh15__photo-dot[aria-current="true"]{',
         'background:linear-gradient(135deg,#ff8b3d,#ff5e3a)!important}',
