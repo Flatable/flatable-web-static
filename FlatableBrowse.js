@@ -168,11 +168,15 @@
     const mount = document.getElementById(CFG.mapMountId);
     if (!mount) return null;
 
+    // Mobile map is ~half the desktop width, so the same zoom shows only a
+    // sliver of Switzerland. Drop a step so the whole country fits at boot.
+    const isMobile = window.matchMedia && window.matchMedia('(max-width: 767px)').matches;
+    const initialZoom = isMobile ? 6.5 : CFG.initialZoom;
     const map = new window.maplibregl.Map({
       container: CFG.mapMountId,
       style: CFG.tileStyle,
       center: CFG.initialCenter,
-      zoom: CFG.initialZoom,
+      zoom: initialZoom,
       attributionControl: false,
     });
     map.addControl(new window.maplibregl.NavigationControl({ showCompass: false }), 'top-right');
