@@ -580,10 +580,22 @@
       }
       return null;
     })();
-    const bounds = map.getBounds();
+    const isMobile = window.matchMedia && window.matchMedia('(max-width: 767px)').matches;
+    // Bounds source priority:
+    //   1. state.searchBounds (mobile user pressed Set Search Area)
+    //   2. live map.getBounds() (desktop or after no area set yet)
+    //   3. always-true on mobile if no area set yet (map is hidden by default)
     const visibleSlugs = [];
+    const inSearchBounds = (lng, lat) => {
+      if (state.searchBounds) {
+        const b = state.searchBounds;
+        return lng >= b.west && lng <= b.east && lat >= b.south && lat <= b.north;
+      }
+      if (isMobile) return true;
+      return map.getBounds().contains([lng, lat]);
+    };
     data.forEach(d => {
-      const inViewport = bounds.contains([d.lng, d.lat]);
+      const inViewport = inSearchBounds(d.lng, d.lat);
       const passesFilters = matchesFilters(d, state);
       // Card-side: only render cards whose marker is inside the current viewport
       // AND that match the user's filters.
@@ -1524,6 +1536,38 @@
       // 119px spacer was creating a big gap between the map and the first card.
       '.lfb__toolbar-shield{display:none!important}',
       '#lfb-toolbar-spacer{display:none!important;height:0!important}',
+      // === Map hidden by default. Opened as a fullscreen overlay by the
+      // search-area flow (tap search input → set bounds → close).
+      'aside.lfb__map{display:none!important}',
+      'body.lf-search-overlay-open aside.lfb__map{display:block!important;',
+      'position:fixed!important;top:var(--lf-sticky-toolbar-top,80px)!important;',
+      'left:0!important;right:0!important;bottom:0!important;',
+      'width:100vw!important;height:auto!important;max-height:none!important;',
+      'z-index:200!important;margin:0!important;box-shadow:none!important}',
+      'body.lf-search-overlay-open .lfb__map-mount,',
+      'body.lf-search-overlay-open #lfb-map-leaflet{height:100%!important}',
+      // Set Search Area button — sticky bottom of overlay.
+      '.lf-search-action-bar{display:none;position:fixed;bottom:24px;left:50%;',
+      'transform:translateX(-50%);background:linear-gradient(135deg,#ff8b3d,#ff5e3a);',
+      'color:#fff;border-radius:999px;padding:14px 30px;z-index:250;font-weight:600;',
+      'box-shadow:0 12px 24px rgba(255,94,58,.42);border:0;font-size:16px;cursor:pointer;',
+      'font-family:inherit}',
+      'body.lf-search-overlay-open .lf-search-action-bar{display:block}',
+      // Close × top-right.
+      '.lf-search-cancel{display:none;position:fixed;',
+      'top:calc(var(--lf-sticky-toolbar-top,80px) + 12px);right:16px;',
+      'width:40px;height:40px;border-radius:50%;background:rgba(255,255,255,.95);',
+      'border:0;z-index:251;font-size:22px;cursor:pointer;',
+      'box-shadow:0 4px 12px rgba(0,0,0,.18);font-family:inherit;line-height:1}',
+      'body.lf-search-overlay-open .lf-search-cancel{display:block}',
+      // Pill below search input when bounds are set.
+      '.lf-search-pill{display:inline-flex;align-items:center;gap:6px;',
+      'background:#fff;border:1px solid #ff5e3a;border-radius:999px;',
+      'padding:6px 6px 6px 14px;margin:6px 12px 4px;font-size:13px;color:#ff5e3a;',
+      'font-weight:500;cursor:pointer;align-self:flex-start}',
+      '.lf-search-pill__text{flex:0 1 auto}',
+      '.lf-search-pill__close{background:none;border:0;color:#ff5e3a;font-size:18px;',
+      'cursor:pointer;padding:0 8px;line-height:1;font-family:inherit}',
       '}'
     ].join('');
     const s = document.createElement('style');
@@ -1543,6 +1587,9 @@
     gender: 'any', student: 'any',
     amen: [], lang: [],
     savedOnly: false,
+    // Mobile only: set by the search-area overlay (Set Search Area button).
+    // When non-null, applyAll uses these bounds instead of the live map bounds.
+    searchBounds: null, // {west, south, east, north} | null
   };
   window.LfbFs = state;
 
@@ -1551,6 +1598,155 @@
   // then cards beneath. The toolbar is otherwise nested inside the cards
   // column where it can't render before the map aside, so we physically lift
   // it to be a previous-sibling of the map. Desktop is untouched.
+  // === Mobile search-area overlay ===
+  // Map is hidden by default on mobile. Tapping the search input opens it
+  // as a fullscreen overlay below the sticky search bar. User pans/zooms,
+  // taps Set Search Area, the captured bounds drive the card list filter.
+  const SEARCH_AREA_KEY = 'flatable.searchArea';
+  // Used to label the search pill — "Around Zürich" feels nicer than
+  // raw coordinates. Picks the nearest city to the bounds centre.
+  const SWISS_CITIES_FOR_PILL = [
+    { name: 'Zürich', lat: 47.376, lng: 8.541 },
+    { name: 'Geneva', lat: 46.204, lng: 6.143 },
+    { name: 'Basel', lat: 47.555, lng: 7.587 },
+    { name: 'Bern', lat: 46.948, lng: 7.447 },
+    { name: 'Lausanne', lat: 46.519, lng: 6.633 },
+    { name: 'Lucerne', lat: 47.050, lng: 8.309 },
+    { name: 'St. Gallen', lat: 47.424, lng: 9.376 },
+    { name: 'Lugano', lat: 46.005, lng: 8.953 },
+    { name: 'Winterthur', lat: 47.500, lng: 8.726 },
+    { name: 'Thun', lat: 46.758, lng: 7.628 },
+    { name: 'Schaffhausen', lat: 47.697, lng: 8.635 },
+    { name: 'Biel', lat: 47.137, lng: 7.243 },
+  ];
+  const nearestCityName = (lng, lat) => {
+    let best = null;
+    let bestD = Infinity;
+    for (const c of SWISS_CITIES_FOR_PILL) {
+      const dx = c.lng - lng, dy = c.lat - lat;
+      const d = dx * dx + dy * dy;
+      if (d < bestD) { bestD = d; best = c; }
+    }
+    return best ? best.name : 'Switzerland';
+  };
+
+  const readPersistedSearchArea = () => {
+    try {
+      const raw = localStorage.getItem(SEARCH_AREA_KEY);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed.west === 'number' && typeof parsed.east === 'number'
+          && typeof parsed.south === 'number' && typeof parsed.north === 'number') {
+        return parsed;
+      }
+    } catch (e) { /* */ }
+    return null;
+  };
+  const writePersistedSearchArea = (b) => {
+    try {
+      if (b) localStorage.setItem(SEARCH_AREA_KEY, JSON.stringify(b));
+      else localStorage.removeItem(SEARCH_AREA_KEY);
+    } catch (e) { /* */ }
+  };
+
+  const renderSearchPill = (data) => {
+    const wrap = document.getElementById('lfb-search-wrap');
+    if (!wrap) return;
+    const existing = document.getElementById('lf-search-pill');
+    if (!state.searchBounds) {
+      if (existing) existing.remove();
+      return;
+    }
+    const b = state.searchBounds;
+    const count = (data || []).filter(d =>
+      d.lng >= b.west && d.lng <= b.east && d.lat >= b.south && d.lat <= b.north
+    ).length;
+    const cityName = nearestCityName((b.west + b.east) / 2, (b.south + b.north) / 2);
+    const label = '📍 Around ' + cityName + ' — ' + count + ' flat' + (count === 1 ? '' : 's');
+    if (existing) {
+      existing.querySelector('.lf-search-pill__text').textContent = label;
+      return;
+    }
+    const pill = document.createElement('div');
+    pill.id = 'lf-search-pill';
+    pill.className = 'lf-search-pill';
+    const text = document.createElement('span');
+    text.className = 'lf-search-pill__text';
+    text.textContent = label;
+    pill.appendChild(text);
+    const close = document.createElement('button');
+    close.type = 'button';
+    close.className = 'lf-search-pill__close';
+    close.setAttribute('aria-label', 'Clear search area');
+    close.textContent = '×';
+    pill.appendChild(close);
+    wrap.insertAdjacentElement('afterend', pill);
+    text.addEventListener('click', () => openSearchOverlay());
+    close.addEventListener('click', (e) => {
+      e.stopPropagation();
+      state.searchBounds = null;
+      writePersistedSearchArea(null);
+      if (window.LfbApply) window.LfbApply();
+    });
+  };
+
+  const ensureSearchOverlayChrome = () => {
+    if (document.querySelector('.lf-search-action-bar')) return;
+    const setBtn = document.createElement('button');
+    setBtn.type = 'button';
+    setBtn.className = 'lf-search-action-bar';
+    setBtn.textContent = 'Set Search Area';
+    setBtn.addEventListener('click', () => {
+      const map = window.LfbB && window.LfbB.map;
+      if (!map) return;
+      const b = map.getBounds();
+      state.searchBounds = {
+        west: b.getWest(), south: b.getSouth(), east: b.getEast(), north: b.getNorth(),
+      };
+      writePersistedSearchArea(state.searchBounds);
+      closeSearchOverlay();
+      if (window.LfbApply) window.LfbApply();
+    });
+    document.body.appendChild(setBtn);
+
+    const cancel = document.createElement('button');
+    cancel.type = 'button';
+    cancel.className = 'lf-search-cancel';
+    cancel.setAttribute('aria-label', 'Close map');
+    cancel.textContent = '×';
+    cancel.addEventListener('click', closeSearchOverlay);
+    document.body.appendChild(cancel);
+  };
+
+  const openSearchOverlay = () => {
+    if (!window.matchMedia('(max-width: 767px)').matches) return;
+    const map = window.LfbB && window.LfbB.map;
+    if (!map) return;
+    ensureSearchOverlayChrome();
+    document.body.classList.add('lf-search-overlay-open');
+    // Restore the last-used bounds if any so the user picks up where they left off.
+    const start = state.searchBounds || readPersistedSearchArea();
+    if (start) {
+      map.fitBounds([[start.west, start.south], [start.east, start.north]],
+        { padding: 12, animate: false });
+    }
+    // Map was display:none — force a resize so MapLibre adopts the new dimensions.
+    setTimeout(() => map.resize(), 50);
+  };
+  const closeSearchOverlay = () => {
+    document.body.classList.remove('lf-search-overlay-open');
+  };
+
+  const wireSearchOverlayTrigger = () => {
+    if (!window.matchMedia('(max-width: 767px)').matches) return;
+    const input = document.getElementById('lfb-search');
+    if (!input) return;
+    // Tap on the search input opens the overlay. Typing still works for the
+    // existing Nominatim geocoder — user can pan + zoom AND type to fly somewhere.
+    input.addEventListener('focus', openSearchOverlay);
+    input.addEventListener('click', openSearchOverlay);
+  };
+
   const setupMobileLayout = () => {
     if (!window.matchMedia || !window.matchMedia('(max-width: 767px)').matches) return;
     const main = document.querySelector('section.lfb__main');
@@ -1616,7 +1812,10 @@
         observeCardChips();
       });
 
-      const onChange = () => applyAll(map, data, state);
+      const onChange = () => {
+        applyAll(map, data, state);
+        renderSearchPill(data);
+      };
       window.LfbApply = onChange;
       wireSavedHearts(data, onChange);
       wireSavedToggle(state, onChange);
@@ -1626,9 +1825,13 @@
       // Restore any persisted filter state BEFORE the first applyAll so the
       // user lands where they left off (e.g. after Skip → back to /browse-flats).
       restorePersistedFilters(panel, state);
+      // Restore last-used mobile search area so the card list opens already
+      // narrowed (with a pill in the search bar).
+      state.searchBounds = readPersistedSearchArea();
       onChange();
 
       wireSearch(map);
+      wireSearchOverlayTrigger();
 
       // Re-sync browse card hearts whenever the page is restored from bfcache
       // (browser back from a detail page). The user may have hearted a flat on
