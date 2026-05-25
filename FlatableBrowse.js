@@ -1374,10 +1374,12 @@
       'background:#fff!important}',
       'section.lfb__main{display:block!important}',
       // Map: full width, sticky below the toolbar, half the previous height.
+      // Override Webflow's `.lfb__map { min-height: 480px }` so the half-height
+      // mobile map can actually shrink to 20vh.
       'aside.lfb__map{position:sticky!important;',
       'top:var(--lf-sticky-map-top,180px)!important;left:0!important;',
-      'width:100%!important;height:20vh!important;max-height:200px!important;z-index:80!important;',
-      'margin:0!important}',
+      'width:100%!important;height:20vh!important;min-height:0!important;',
+      'max-height:200px!important;z-index:80!important;margin:0!important}',
       '#' + CFG.mapMountId + ',.lfb__map-mount{height:100%!important;width:100%!important}',
       // Cards grid: single column, full width.
       '.lfb__grid,.w-dyn-list .w-dyn-items{grid-template-columns:1fr!important;',
