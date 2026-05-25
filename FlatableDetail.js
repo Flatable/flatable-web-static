@@ -741,6 +741,95 @@
     });
   };
 
+  // === JSON-LD schema (Accommodation + BreadcrumbList) ===
+  // Inject a single <script type="application/ld+json"> with the per-flat
+  // schema.org markup. Google uses this for rich results on rental listings.
+  // All data is read from the rendered DOM so we don't need to add new
+  // data-bind carriers; if any field is missing the property is omitted.
+  const injectFlatJsonLd = () => {
+    if (document.getElementById('lf-flat-jsonld')) return;
+    const title = document.querySelector('.lfh15__title')?.textContent?.trim() || '';
+    const kicker = document.querySelector('.lfh15__kicker')?.textContent?.trim() || '';
+    // Kicker reads like "8001 Zürich" — first token is postcode, rest is city.
+    const km = kicker.match(/^\s*(\d{4,6})\s+(.+?)\s*$/);
+    const postcode = km ? km[1] : '';
+    const city = km ? km[2] : kicker;
+    const photoCsv = document.querySelector('.lfh15__photo')?.getAttribute('data-photos') || '';
+    const images = photoCsv.split(',').map((u) => u.trim()).filter(Boolean);
+    // Rent: parse the integer out of "CHF 2'345 / month"
+    const rentRaw = document.querySelector('.lfh15-fact__rent, [data-bind="rent-text"]')?.textContent || '';
+    const rentMatch = rentRaw.replace(/[’',\s]/g, '').match(/(\d+)/);
+    const rentValue = rentMatch ? parseInt(rentMatch[1], 10) : null;
+    // Room size: integer in the size fact value
+    const sizeRaw = document.querySelector('[data-bind="room-size"]')?.textContent || '';
+    const sizeMatch = sizeRaw.match(/(\d+)/);
+    const sizeValue = sizeMatch ? parseInt(sizeMatch[1], 10) : null;
+
+    const data = {
+      '@context': 'https://schema.org',
+      '@type': 'Accommodation',
+      name: [title, 'in', city].filter(Boolean).join(' '),
+      url: window.location.origin + window.location.pathname,
+    };
+    if (images.length) data.image = images;
+    if (city || postcode) {
+      data.address = { '@type': 'PostalAddress', addressCountry: 'CH' };
+      if (city) data.address.addressLocality = city;
+      if (postcode) data.address.postalCode = postcode;
+    }
+    if (sizeValue) {
+      data.floorSize = { '@type': 'QuantitativeValue', value: sizeValue, unitCode: 'MTK' };
+    }
+    if (rentValue) {
+      data.offers = {
+        '@type': 'Offer',
+        price: rentValue,
+        priceCurrency: 'CHF',
+        availability: 'https://schema.org/InStock',
+        priceSpecification: {
+          '@type': 'UnitPriceSpecification',
+          price: rentValue,
+          priceCurrency: 'CHF',
+          unitCode: 'MON',
+        },
+      };
+    }
+
+    // Breadcrumb: Home → Browse Flats → This flat
+    const breadcrumbs = {
+      '@context': 'https://schema.org',
+      '@type': 'BreadcrumbList',
+      itemListElement: [
+        { '@type': 'ListItem', position: 1, name: 'Home', item: window.location.origin + '/' },
+        { '@type': 'ListItem', position: 2, name: 'Browse Flats', item: window.location.origin + '/browse-flats' },
+        { '@type': 'ListItem', position: 3, name: title || 'Flat', item: window.location.href },
+      ],
+    };
+
+    const script = document.createElement('script');
+    script.id = 'lf-flat-jsonld';
+    script.type = 'application/ld+json';
+    script.textContent = JSON.stringify([data, breadcrumbs]);
+    document.head.appendChild(script);
+  };
+
+  // Set a meaningful alt on the hero photo + lightbox img using the title +
+  // city. Without this both render with empty alt and a screen reader announces
+  // them as anonymous "image".
+  const wireDetailAlts = () => {
+    const title = document.querySelector('.lfh15__title')?.textContent?.trim() || '';
+    const kicker = document.querySelector('.lfh15__kicker')?.textContent?.trim() || '';
+    const km = kicker.match(/^\s*\d{4,6}\s+(.+?)\s*$/);
+    const city = km ? km[1] : kicker;
+    const altText = title ? ('Photo of ' + title + (city ? ' in ' + city : '')) : 'Flat photo';
+    const heroImg = document.querySelector('.lfh15__photo-img');
+    if (heroImg) heroImg.setAttribute('alt', altText);
+    // Lightbox img is created at boot but has empty src until opened; set a
+    // descriptive alt now so screen readers announce it meaningfully.
+    const lbImg = document.querySelector('.lf-lightbox__img');
+    if (lbImg) lbImg.setAttribute('alt', altText);
+  };
+
   // === Boot ===
   const boot = () => {
     injectCss();
@@ -758,6 +847,8 @@
     wireHeroHeart();
     wireLightbox();
     decorateChips();
+    wireDetailAlts();
+    injectFlatJsonLd();
   };
 
   // bfcache: when the user hits back into a cached detail page, refresh the

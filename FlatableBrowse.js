@@ -272,6 +272,19 @@
     });
   };
 
+  // Set a meaningful alt on each card's photo so screen readers + image search
+  // get a useful label. Falls back to "Flat photo" if no city is bound.
+  const wireCardImageAlts = (data) => {
+    data.forEach(d => {
+      const img = d.card.querySelector('.lfb__card__img-1') || d.card.querySelector('img');
+      if (!img) return;
+      const city = getText(d.card, 'city') || '';
+      const rent = getText(d.card, 'rent-text') || '';
+      const alt = city ? ('Flat in ' + city + (rent ? ' — ' + rent + '/month' : '')) : 'Flat photo';
+      img.setAttribute('alt', alt);
+    });
+  };
+
   // === Tag emoji map ===
   // Sourced from the canonical Flutter list in `lib/v2/core/models/emoji_model.dart`
   // so the web stays in sync with the app. Unknown values intentionally fall through
@@ -1573,6 +1586,7 @@
       placeMarkers(map, data);
       wireCardLinks(data);
       wireCardImageLoading(data);
+      wireCardImageAlts(data);
       wireClickScroll(data);
       // The chip splitter runs at body bottom and writes chips into cards.
       // Decorate after a microtask so we run after its initial pass, then

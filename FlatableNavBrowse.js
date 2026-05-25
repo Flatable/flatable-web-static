@@ -17,6 +17,71 @@
   var TARGET_HREF = '/browse-flats';
   var LABEL = 'Browse Flats';
 
+  // === Alt-text safety net ===
+  // Webflow's accessibility audit flags any <img> without an alt attribute.
+  // The site has dozens of decorative SVG icons + background illustrations
+  // that should have alt="" (empty but present so screen readers skip them).
+  // This pass sets alt="" on every image that doesn't already have one. CMS
+  // images with descriptive alt set in the Designer are untouched. Re-runs on
+  // any new image added later via a MutationObserver.
+  function fixDecorativeAlts(root) {
+    var imgs = (root || document).querySelectorAll('img:not([alt])');
+    imgs.forEach(function (img) { img.setAttribute('alt', ''); });
+  }
+  function watchForNewImages() {
+    fixDecorativeAlts(document);
+    if (!window.MutationObserver) return;
+    var obs = new MutationObserver(function (mutations) {
+      for (var i = 0; i < mutations.length; i++) {
+        var added = mutations[i].addedNodes;
+        for (var j = 0; j < added.length; j++) {
+          var n = added[j];
+          if (n.nodeType === 1) {
+            if (n.tagName === 'IMG' && !n.hasAttribute('alt')) n.setAttribute('alt', '');
+            else if (n.querySelectorAll) fixDecorativeAlts(n);
+          }
+        }
+      }
+    });
+    obs.observe(document.documentElement, { childList: true, subtree: true });
+  }
+
+  // === JSON-LD site schema (Organization + WebSite) ===
+  // Runs on every page so Google sees consistent entity markup.
+  function injectSiteJsonLd() {
+    if (document.getElementById('lf-site-jsonld')) return;
+    var origin = window.location.origin;
+    var data = [
+      {
+        '@context': 'https://schema.org',
+        '@type': 'Organization',
+        name: 'Flatable',
+        url: origin + '/',
+        logo: origin + '/images/flatable-logo.png',
+        sameAs: [
+          'https://apps.apple.com/app/id6749847670',
+          'https://play.google.com/store/apps/details?id=com.flatable'
+        ]
+      },
+      {
+        '@context': 'https://schema.org',
+        '@type': 'WebSite',
+        name: 'Flatable',
+        url: origin + '/',
+        potentialAction: {
+          '@type': 'SearchAction',
+          target: { '@type': 'EntryPoint', urlTemplate: origin + '/search?q={search_term_string}' },
+          'query-input': 'required name=search_term_string'
+        }
+      }
+    ];
+    var s = document.createElement('script');
+    s.id = 'lf-site-jsonld';
+    s.type = 'application/ld+json';
+    s.textContent = JSON.stringify(data);
+    document.head.appendChild(s);
+  }
+
   function inject() {
     if (document.querySelector('[' + MARKER + '="' + MARKER_VALUE + '"]')) return;
 
@@ -58,6 +123,8 @@
     downloadLi.parentNode.insertBefore(clone, downloadLi);
     injectMobileMenuItem();
     injectStyles();
+    injectSiteJsonLd();
+    watchForNewImages();
   }
 
   // Mobile menu (hamburger drawer): inject Browse Flats right ABOVE the
