@@ -1343,7 +1343,25 @@
   };
 
   // === 12. SEARCH GEOCODING ===
-  const wireSearch = (map) => {
+  // Pending state for boot-time race: wireSearch is attached synchronously
+  // before the map is ready (so the input feels responsive on first load).
+  // If the user types before map.on('load') fires, the latest debounced query
+  // is parked here and drained from the load handler.
+  let pendingSearchQuery = null;
+  const doGeocode = (q, map) => {
+    const url = 'https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=' +
+      CFG.countryCode + '&q=' + encodeURIComponent(q);
+    fetch(url).then(r => r.json()).then(j => {
+      if (j && j[0]) {
+        map.flyTo({
+          center: [parseFloat(j[0].lon), parseFloat(j[0].lat)],
+          zoom: CFG.searchFlyZoom,
+          duration: 800,
+        });
+      }
+    }).catch(() => {});
+  };
+  const wireSearch = () => {
     const si = document.getElementById('lfb-search');
     if (!si) return;
     let debounce;
@@ -1352,17 +1370,10 @@
       const q = si.value.trim();
       if (q.length < 3) return;
       debounce = setTimeout(() => {
-        const url = 'https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=' +
-          CFG.countryCode + '&q=' + encodeURIComponent(q);
-        fetch(url).then(r => r.json()).then(j => {
-          if (j && j[0]) {
-            map.flyTo({
-              center: [parseFloat(j[0].lon), parseFloat(j[0].lat)],
-              zoom: CFG.searchFlyZoom,
-              duration: 800,
-            });
-          }
-        }).catch(() => {});
+        const map = window.LfbB && window.LfbB.map;
+        // Map still loading — park the query and let the load handler replay it.
+        if (!map) { pendingSearchQuery = q; return; }
+        doGeocode(q, map);
       }, CFG.searchDebounce);
     });
   };
@@ -1802,10 +1813,16 @@
     );
   };
 
+  // Pending overlay-open intent during the boot-time race. wireSearchOverlayTrigger
+  // is attached synchronously so the input is interactive immediately, but the
+  // overlay itself needs the map ready before it can render. If the user taps
+  // the input before map.on('load'), the intent is parked here and replayed
+  // from the load handler.
+  let pendingOverlayOpen = false;
   const openSearchOverlay = () => {
     if (!window.matchMedia('(max-width: 767px)').matches) return;
     const map = window.LfbB && window.LfbB.map;
-    if (!map) return;
+    if (!map) { pendingOverlayOpen = true; return; }
     ensureSearchOverlayChrome();
     document.body.classList.add('lf-search-overlay-open');
     // Keep the input focused so the keyboard opens and the user can type a
@@ -1894,6 +1911,15 @@
     const panel = buildFilterPanel();
     buildSortMenu();
 
+    // Attach the search-input listeners SYNCHRONOUSLY, before the map loads.
+    // This prevents the cold-load race where users tap/type into the input
+    // before map.on('load') fires — the listeners were inside that callback
+    // so the very first interaction was silently dropped on first page load.
+    // The handlers read window.LfbB.map lazily; intents/queries are queued
+    // and drained at the end of map.on('load').
+    wireSearch();
+    wireSearchOverlayTrigger();
+
     const map = await initMap();
     if (!map) return;
 
@@ -1935,8 +1961,18 @@
       applySort('movein');
       onChange();
 
-      wireSearch(map);
-      wireSearchOverlayTrigger();
+      // Drain any boot-time interactions that hit the input while the map was
+      // still loading. Order matters: open overlay first (so the map canvas
+      // is visible), then replay the search query so flyTo lands on a visible map.
+      if (pendingOverlayOpen) {
+        pendingOverlayOpen = false;
+        openSearchOverlay();
+      }
+      if (pendingSearchQuery) {
+        const q = pendingSearchQuery;
+        pendingSearchQuery = null;
+        doGeocode(q, map);
+      }
 
       // Re-sync browse card hearts whenever the page is restored from bfcache
       // (browser back from a detail page). The user may have hearted a flat on
