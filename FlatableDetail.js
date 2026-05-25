@@ -60,6 +60,22 @@
       // Photo container shows white (matching page bg) during the brief gap
       // while the next carousel image loads — no peachy flash.
       '.lfh15__photo{background:#fff!important;background-color:#fff!important}',
+      // === MOBILE (≤767px) — scoped overrides ONLY. Desktop untouched. ===
+      '@media (max-width:767px){',
+      // Hero primary row (rent / size / dates): wrap so rent+size sit on row 1
+      // and the combined "from … till …" dates stat drops to row 2.
+      // Child order: stat[rent], sep, stat[size], sep, stat[dates] → indices 1..5.
+      '.lfh15__primary{flex-wrap:wrap!important;row-gap:6px!important;align-items:baseline!important}',
+      '.lfh15__primary>*:nth-child(4){display:none!important}',
+      '.lfh15__primary>*:nth-child(5){flex-basis:100%!important;margin-top:4px!important;',
+      'color:#5a3f33!important;font-size:0.95em!important}',
+      // Secondary facts (Furnished / Utilities / Flatmates / Free rooms / Student req
+      // and the hidden Age range): two-column grid.
+      '.lfh15-facts{display:grid!important;grid-template-columns:1fr 1fr!important;',
+      'gap:16px 12px!important;width:100%!important;align-items:start!important}',
+      '.lfh15-fact{width:auto!important;min-width:0!important}',
+      '}'
+    ].join('');
       // Active carousel dash uses brand orange (overrides HeroSlider inline white).
       '.lfh15__photo-dot[aria-current="true"]{',
         'background:linear-gradient(135deg,#ff8b3d,#ff5e3a)!important}',

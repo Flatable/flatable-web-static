@@ -1364,6 +1364,35 @@
       'background:none;border:0;cursor:pointer;font-size:14px;color:#1a1714;',
       'font-family:inherit}',
       '.lfb__cb__item:hover{background:#fffaf2}',
+      // === MOBILE (≤767px) — scoped overrides ONLY. Desktop untouched. ===
+      '@media (max-width:767px){',
+      // Single-column main: toolbar (moved by JS) → map (sticky top) → cards
+      'section.lfb__main{display:block!important}',
+      // Map: full width, sticky to viewport top, sensible height
+      'aside.lfb__map{position:sticky!important;top:0!important;left:0!important;',
+      'width:100%!important;height:40vh!important;max-height:380px!important;z-index:5!important;',
+      'margin:0!important}',
+      '#' + CFG.mapMountId + ',.lfb__map-mount{height:100%!important;width:100%!important}',
+      // Cards grid: single column, full width
+      '.lfb__grid,.w-dyn-list .w-dyn-items{grid-template-columns:1fr!important;',
+      'display:grid!important;gap:16px!important;padding:12px!important;width:100%!important;',
+      'box-sizing:border-box!important}',
+      '.lfb__card-1,.w-dyn-item{width:100%!important;max-width:100%!important;',
+      'min-width:0!important;box-sizing:border-box!important}',
+      // Toolbar: full-width, two rows (search full row, buttons row).
+      // Override the desktop fixed positioning from FlatableBrowseMapStage10.
+      '.lfb__toolbar{position:relative!important;top:auto!important;left:auto!important;',
+      'right:auto!important;width:100%!important;display:flex!important;flex-wrap:wrap!important;',
+      'gap:8px!important;padding:12px!important;box-sizing:border-box!important;',
+      'background:#fff!important;border-bottom:1px solid #ece8df!important;transform:none!important}',
+      '.lfb__toolbar #lfb-search-wrap{flex:1 0 100%!important;order:0!important;',
+      'width:100%!important;max-width:100%!important}',
+      '.lfb__toolbar #lfb-filters-btn,.lfb__toolbar #lfb-saved-btn,.lfb__toolbar #lfb-sort-btn{',
+      'flex:1 1 0!important;order:1!important;justify-content:center!important;',
+      'min-width:0!important;padding:10px 12px!important}',
+      // Toolbar shield (the fixed-position shim used on desktop) — disable on mobile.
+      '.lfb__toolbar-shield{display:none!important}',
+      '}'
     ].join('');
     const s = document.createElement('style');
     s.id = 'lfb-master-css';
@@ -1385,10 +1414,28 @@
   };
   window.LfbFs = state;
 
+  // === MOBILE DOM REORDER ===
+  // On viewports ≤767px the user wants: search + buttons ABOVE the sticky map,
+  // then cards beneath. The toolbar is otherwise nested inside the cards
+  // column where it can't render before the map aside, so we physically lift
+  // it to be a previous-sibling of the map. Desktop is untouched.
+  const setupMobileLayout = () => {
+    if (!window.matchMedia || !window.matchMedia('(max-width: 767px)').matches) return;
+    const main = document.querySelector('section.lfb__main');
+    const toolbar = document.querySelector('.lfb__toolbar');
+    const mapAside = document.querySelector('aside.lfb__map');
+    if (!main || !toolbar || !mapAside) return;
+    // Only move if not already the previous sibling of the map.
+    if (toolbar.parentNode !== main || toolbar.nextElementSibling !== mapAside) {
+      main.insertBefore(toolbar, mapAside);
+    }
+  };
+
   const boot = async () => {
     injectCss();
     isolateMap();
     injectToolbarUI();
+    setupMobileLayout();
     const panel = buildFilterPanel();
     buildSortMenu();
 
