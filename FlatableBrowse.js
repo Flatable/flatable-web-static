@@ -1442,7 +1442,8 @@
       'width:calc(100% - 24px)!important;height:28vh!important;min-height:0!important;',
       'max-height:280px!important;z-index:80!important;margin:0 12px!important;',
       'box-shadow:0 10px 0 0 #fff!important}',
-      '#' + CFG.mapMountId + ',.lfb__map-mount{height:100%!important;width:100%!important}',
+      '#' + CFG.mapMountId + ',.lfb__map-mount{height:100%!important;width:100%!important;',
+      'min-height:0!important;max-height:100%!important}',
       // Cards grid: single column, full width. Tight top so the first card
       // sits just below the map instead of after a gap.
       '.lfb__grid,.w-dyn-list .w-dyn-items{grid-template-columns:1fr!important;',
