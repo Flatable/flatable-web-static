@@ -57,8 +57,9 @@
         'color:#fff!important;border-color:transparent!important;display:inline-flex;',
         'align-items:center;gap:6px}',
       '.lfg22__chip .lf-chip__emoji{font-size:1em;line-height:1;flex:0 0 auto}',
-      // Ghost layer used by the cross-fade transition between carousel photos.
-      '.lf-img-ghost{display:block}',
+      // Photo container shows white (matching page bg) during the brief gap
+      // while the next carousel image loads — no peachy flash.
+      '.lfh15__photo{background:#fff!important;background-color:#fff!important}',
       // Active carousel dash uses brand orange (overrides HeroSlider inline white).
       '.lfh15__photo-dot[aria-current="true"]{',
         'background:linear-gradient(135deg,#ff8b3d,#ff5e3a)!important}',
@@ -604,95 +605,6 @@
     return root;
   };
 
-  // === Hero photo cross-fade ===
-  // Strategy: the live <img> is LOCKED to whatever is currently on-screen.
-  // When the slider changes its src, we revert that change immediately (in the
-  // same MutationObserver microtask, before a paint can happen) so the user
-  // never sees the live img go blank. Meanwhile we load the new src into a
-  // fader <img> on top. Once that fader is decoded, we fade it in. After the
-  // fade completes we commit the new src back onto the live img (it's now in
-  // the browser cache so the swap is invisible) and hide the fader for the
-  // next round.
-  const observeHeroPhoto = () => {
-    const wrap = document.querySelector('.lfh15__photo');
-    const live = wrap?.querySelector('.lfh15__photo-img');
-    if (!wrap || !live) return;
-
-    if (getComputedStyle(wrap).position === 'static') wrap.style.position = 'relative';
-    wrap.style.backgroundColor = '#fff';
-
-    const fader = document.createElement('img');
-    fader.className = 'lf-img-ghost';
-    fader.alt = '';
-    fader.setAttribute('aria-hidden', 'true');
-    fader.style.position = 'absolute';
-    fader.style.inset = '0';
-    fader.style.width = '100%';
-    fader.style.height = '100%';
-    fader.style.objectFit = getComputedStyle(live).objectFit || 'cover';
-    fader.style.objectPosition = getComputedStyle(live).objectPosition || 'center';
-    fader.style.zIndex = '2';
-    fader.style.pointerEvents = 'none';
-    fader.style.opacity = '0';
-    wrap.appendChild(fader);
-
-    // The currently-displayed src — the only value live.src is allowed to hold.
-    let displayed = live.getAttribute('src') || live.src;
-    // The src we're in the middle of fading in (so the observer doesn't
-    // re-trigger when we commit it back onto live at the end).
-    let committing = null;
-
-    const FADE_MS = 260;
-
-    const obs = new MutationObserver(() => {
-      const desired = live.getAttribute('src') || live.src;
-      if (!desired) return;
-      // We just committed this ourselves at the end of a transition.
-      if (desired === committing) { committing = null; displayed = desired; return; }
-      // No change vs what's actually shown — nothing to do.
-      if (desired === displayed) return;
-
-      // Snap the live img back to the currently-displayed src BEFORE paint.
-      // MutationObserver fires as a microtask, so this revert happens within
-      // the same frame; the user never sees a blank.
-      live.setAttribute('src', displayed);
-
-      // Preload the new src via a detached probe so we can be sure decode
-      // finished before we ever raise opacity.
-      const probe = new Image();
-      probe.addEventListener('load', () => {
-        const showFader = () => {
-          fader.style.transition = 'none';
-          fader.src = desired;
-          fader.style.opacity = '0';
-          void fader.offsetWidth; // commit the opacity:0 baseline
-          fader.style.transition = 'opacity ' + FADE_MS + 'ms ease';
-          fader.style.opacity = '1';
-          window.setTimeout(() => {
-            // Cross-fade done — commit the new src onto the live img (cached,
-            // so it paints instantly) and reset the fader for the next round.
-            committing = desired;
-            live.setAttribute('src', desired);
-            fader.style.transition = 'none';
-            fader.style.opacity = '0';
-            fader.removeAttribute('src');
-          }, FADE_MS + 30);
-        };
-        if (typeof probe.decode === 'function') {
-          probe.decode().catch(() => {}).then(showFader);
-        } else {
-          showFader();
-        }
-      }, { once: true });
-      probe.addEventListener('error', () => {
-        // Preload failed; just let the slider's src stand (better than getting stuck).
-        committing = desired;
-        live.setAttribute('src', desired);
-      }, { once: true });
-      probe.src = desired;
-    });
-    obs.observe(live, { attributes: true, attributeFilter: ['src'] });
-  };
 
   const wireLightbox = () => {
     const photo = document.querySelector('.lfh15__photo');
@@ -805,7 +717,6 @@
     wireSkipButton();
     wireHeroHeart();
     wireLightbox();
-    observeHeroPhoto();
     decorateChips();
   };
 
