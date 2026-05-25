@@ -1607,7 +1607,7 @@
       // Close × — top-LEFT of the overlay map; flex-centered glyph, hugged
       // into the rounded corner of the map card.
       '.lf-search-cancel{display:none;position:fixed;',
-      'top:calc(var(--lf-search-overlay-map-top,140px) + 8px);left:16px;',
+      'top:calc(var(--lf-search-overlay-map-top,140px) + 6px);left:14px;',
       'width:36px;height:36px;border-radius:50%;background:rgba(255,255,255,.95);',
       'border:0;z-index:251;font-size:20px;line-height:1;cursor:pointer;color:#5a3f33;',
       'box-shadow:0 4px 12px rgba(0,0,0,.18);font-family:inherit;padding:0;',
@@ -1788,13 +1788,15 @@
 
   // Measure the toolbar's actual bottom edge (which now collapses to just the
   // search input when overlay is open — buttons + pill row are hidden), then
-  // position the map 8px below it. Sets the CSS variable both rules consume.
+  // position the map below it with a comfortable gap. Sets the CSS variable
+  // both rules consume.
   const updateOverlayMapTop = () => {
     const toolbar = document.querySelector('.lfb__toolbar');
     if (!toolbar) return;
-    // Toolbar bottom in viewport coords. Add an 8px gap so the map sits a
-    // touch under the search bar instead of touching its bottom edge.
-    const bottom = Math.round(toolbar.getBoundingClientRect().bottom) + 8;
+    // Toolbar bottom in viewport coords. Add a 16px gap so the search field's
+    // shadow has room to fade out before the map starts — without this the
+    // shadow visually bleeds into the map's top edge.
+    const bottom = Math.round(toolbar.getBoundingClientRect().bottom) + 16;
     document.documentElement.style.setProperty(
       '--lf-search-overlay-map-top', bottom + 'px'
     );
