@@ -219,6 +219,45 @@
     });
   };
 
+  // Wire the existing heart icon on each browse card to toggle saved state.
+  // The heart element comes from Webflow as `.lfb__card__heart-1.w-button` (an
+  // anchor). We hijack its click, persist the slug in localStorage, and toggle
+  // the `is-saved` class for the filled-vs-outline visual state.
+  const wireSavedHearts = (data, applyFn) => {
+    data.forEach(d => {
+      if (!d.slug) return;
+      const heart = d.card.querySelector('.lfb__card__heart-1');
+      if (!heart) return;
+      if (SAVED.has(d.slug)) heart.classList.add('is-saved');
+      heart.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (SAVED.has(d.slug)) {
+          SAVED.delete(d.slug);
+          heart.classList.remove('is-saved');
+        } else {
+          SAVED.add(d.slug);
+          heart.classList.add('is-saved');
+        }
+        writeSavedSet(SAVED);
+        // If the Saved-only view is on, re-apply so the just-removed card
+        // disappears (or the just-added one stays in view).
+        if (applyFn) applyFn();
+      });
+    });
+  };
+
+  // Wire the Saved toolbar toggle. Active state mirrors `state.savedOnly`.
+  const wireSavedToggle = (state, applyFn) => {
+    const btn = document.getElementById('lfb-saved-btn');
+    if (!btn) return;
+    btn.addEventListener('click', () => {
+      state.savedOnly = !state.savedOnly;
+      btn.classList.toggle('is-active', state.savedOnly);
+      if (applyFn) applyFn();
+    });
+  };
+
   // === 6. MARKERS ===
   const placeMarkers = (map, data) => {
     const ml = window.maplibregl;
@@ -252,8 +291,28 @@
     });
   };
 
+  // === 6b. SAVED FLATS (localStorage) ===
+  // Set of slugs the user has hearted on browse cards. Persisted across
+  // sessions and read by `matchesFilters` when the Saved toolbar toggle is on.
+  const SAVED_KEY = 'flatable.savedFlats';
+  const readSavedSet = () => {
+    try {
+      const raw = localStorage.getItem(SAVED_KEY);
+      if (!raw) return new Set();
+      const arr = JSON.parse(raw);
+      return Array.isArray(arr) ? new Set(arr) : new Set();
+    } catch (e) {
+      return new Set();
+    }
+  };
+  const writeSavedSet = (set) => {
+    try { localStorage.setItem(SAVED_KEY, JSON.stringify(Array.from(set))); } catch (e) { /* */ }
+  };
+  let SAVED = readSavedSet();
+
   // === 7. CARDS HIDE/REFLOW ===
   const matchesFilters = (d, state) => {
+    if (state.savedOnly && !(d.slug && SAVED.has(d.slug))) return false;
     if (state.rentMin !== null && !isNaN(d.rentNum) && d.rentNum < state.rentMin) return false;
     if (state.rentMax !== null && !isNaN(d.rentNum) && d.rentNum > state.rentMax) return false;
     if (state.sizeMin !== null && !isNaN(d.roomSize) && d.roomSize < state.sizeMin) return false;
@@ -421,6 +480,23 @@
       const s = document.createElement('span');
       s.textContent = 'Sort';
       sb.appendChild(s);
+    }
+    // Inject a "Saved" toolbar button next to Sort. Re-uses the same
+    // .lfb__toolbar-btn class so it visually matches Filters/Sort.
+    const toolbar = document.querySelector('.lfb__toolbar');
+    if (toolbar && !document.getElementById('lfb-saved-btn') && sb) {
+      const btn = document.createElement('div');
+      btn.id = 'lfb-saved-btn';
+      btn.className = 'lfb__toolbar-btn';
+      btn.setAttribute('role', 'button');
+      btn.setAttribute('tabindex', '0');
+      btn.appendChild(makeSvg(null, 16, 16, [
+        makeSvgPath('M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78L12 21.23l8.84-8.84a5.5 5.5 0 0 0 0-7.78z'),
+      ]));
+      const s = document.createElement('span');
+      s.textContent = 'Saved';
+      btn.appendChild(s);
+      toolbar.insertBefore(btn, sb);
     }
   };
 
@@ -926,6 +1002,13 @@
       'color:#1a1714;font-family:inherit}',
       '.lfb__sp button:hover{background:#fffaf2}',
       '.lfb__sp button.sel{font-weight:600;background:#fff5e8}',
+      // Saved heart filled state on browse cards.
+      '.lfb__card__heart-1{transition:background 160ms ease,color 160ms ease}',
+      '.lfb__card__heart-1.is-saved{background:linear-gradient(135deg,#ff8b3d,#ff5e3a)!important;color:#fff!important;border-color:transparent!important}',
+      '.lfb__card__heart-1.is-saved svg,.lfb__card__heart-1.is-saved .lfb__card__heart-icon{fill:#fff!important;stroke:#fff!important;color:#fff!important}',
+      // Active state for Saved toolbar button mirrors marker-hover pill style.
+      '#lfb-saved-btn.is-active{background:linear-gradient(135deg,#ff8b3d,#ff5e3a)!important;color:#fff!important;border-color:transparent!important}',
+      '#lfb-saved-btn.is-active svg{stroke:#fff!important}',
       '.lfb__fp{position:fixed;inset:0;z-index:1100;display:none}',
       '.lfb__fp.open{display:block}',
       '.lfb__fp__bg{position:absolute;inset:0;background:rgba(20,16,12,.4)}',
@@ -1002,6 +1085,7 @@
     ageMin: null, ageMax: null,
     gender: 'any', student: 'any',
     amen: [], lang: [],
+    savedOnly: false,
   };
   window.LfbFs = state;
 
@@ -1025,6 +1109,8 @@
 
       const onChange = () => applyAll(map, data, state);
       window.LfbApply = onChange;
+      wireSavedHearts(data, onChange);
+      wireSavedToggle(state, onChange);
       map.on('moveend', onChange);
       onChange();
 
