@@ -2045,6 +2045,63 @@
     document.documentElement.style.setProperty('--lf-sticky-map-top', (headerH + toolbarH) + 'px');
   };
 
+  // === PAGE-LOAD ANIMATIONS (GSAP — matches the rest of flatable.ch) ===
+  // The site loads GSAP, ScrollTrigger, and Lenis on every page. Other pages
+  // use Webflow's load-animate / view-animate attribute markers, but the
+  // browse-flats inner shell (toolbar + map + card grid) is built/injected
+  // by this script and bypasses that system. These helpers reproduce the
+  // same satisfying choreography with our own GSAP timeline.
+  const wireToolbarReveal = () => {
+    if (!window.gsap) return;
+    const toolbar = document.querySelector('.lfb__toolbar');
+    if (!toolbar) return;
+    const items = toolbar.querySelectorAll(
+      '#lfb-search-wrap, #lfb-filters-btn, #lfb-saved-btn, #lfb-sort-btn'
+    );
+    if (!items.length) return;
+    window.gsap.from(items, {
+      opacity: 0,
+      y: 12,
+      duration: 0.6,
+      stagger: 0.08,
+      ease: 'power3.out',
+      delay: 0.15,
+    });
+  };
+  const hideMapForFadeIn = () => {
+    if (!window.gsap) return;
+    const mapAside = document.querySelector('aside.lfb__map');
+    if (mapAside) window.gsap.set(mapAside, { opacity: 0 });
+  };
+  const fadeMapIn = () => {
+    if (!window.gsap) return;
+    const mapAside = document.querySelector('aside.lfb__map');
+    if (!mapAside) return;
+    window.gsap.to(mapAside, {
+      opacity: 1,
+      duration: 0.7,
+      ease: 'power2.out',
+    });
+  };
+  const wireCardScrollFadeIn = (data) => {
+    if (!window.gsap || !window.ScrollTrigger) return;
+    try { window.gsap.registerPlugin(window.ScrollTrigger); } catch (e) { /* */ }
+    const items = data.map((d) => d.wrap || d.card).filter(Boolean);
+    items.forEach((el) => {
+      window.gsap.from(el, {
+        opacity: 0,
+        y: 18,
+        duration: 0.55,
+        ease: 'power2.out',
+        scrollTrigger: {
+          trigger: el,
+          start: 'top 92%',
+          toggleActions: 'play none none none',
+        },
+      });
+    });
+  };
+
   const boot = async () => {
     injectCss();
     isolateMap();
@@ -2052,6 +2109,11 @@
     setupMobileLayout();
     const panel = buildFilterPanel();
     buildSortMenu();
+    // Hide the map immediately so it doesn't flash its grey loading canvas
+    // before MapLibre's 'load' fires. Toolbar staggers in once the items
+    // are in the DOM.
+    hideMapForFadeIn();
+    wireToolbarReveal();
 
     // Attach the search-input listeners SYNCHRONOUSLY, before the map loads.
     // This prevents the cold-load race where users tap/type into the input
@@ -2074,6 +2136,10 @@
       wireCardImageLoading(data);
       wireCardImageAlts(data);
       wireClickScroll(data);
+      // Map tiles are ready — fade the aside in. Cards get scroll-triggered
+      // fade-up so they choreograph in as the user scrolls down.
+      fadeMapIn();
+      wireCardScrollFadeIn(data);
       // The chip splitter runs at body bottom and writes chips into cards.
       // Decorate after a microtask so we run after its initial pass, then
       // start observing for any later rewrites that would drop our emoji spans.
