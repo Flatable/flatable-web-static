@@ -662,17 +662,20 @@
     // grid fallback) — the browser's native overflow-anchor handles small
     // adjustments, and JS-driven scrollBy on every moveend was the source
     // of both small-jitter and footer-jump symptoms. BUT we still need a
-    // narrow rescue: when the user zooms into an area with no flats and
-    // the document shrinks dramatically, the browser auto-clamps scrollY
-    // to the new maxScroll — which IS the footer. Detect that case (zero
-    // visible cards AND user is in the footer zone) and scroll to top of
-    // page so the toolbar/search are in view.
+    // narrow rescue: when the user zooms into a sparse area while scrolled
+    // deep, the document collapses and the browser auto-clamps scrollY
+    // down — sometimes landing them in the footer zone. Detect that
+    // specific case (browser pulled us down AND we're now in the footer
+    // zone) and bounce to top of page. This is independent of how many
+    // cards survived; a stray edge-of-bounds flat shouldn't keep us
+    // stuck looking at the footer.
     if (!preserveScroll) {
       requestAnimationFrame(() => {
-        if (visibleSlugs.length !== 0) return;
         const maxScroll = Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
         const FOOTER_BUFFER = 120;
-        if (window.scrollY > 0 && window.scrollY > maxScroll - FOOTER_BUFFER) {
+        const browserClampedDown = window.scrollY < scrollBefore;
+        const inFooterZone = window.scrollY > 0 && window.scrollY > maxScroll - FOOTER_BUFFER;
+        if (browserClampedDown && inFooterZone) {
           window.scrollTo(0, 0);
         }
       });
