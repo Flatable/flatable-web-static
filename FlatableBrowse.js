@@ -658,10 +658,26 @@
     const fb = document.getElementById('lfb-filters-btn');
     if (fb) fb.classList.toggle('is-active', isAnyFilterActive(state));
 
-    // Map pan/zoom callers skip scroll restoration entirely — the browser's
-    // native overflow-anchor handles it, and JS-driven scrollBy on every
-    // moveend was the source of both small-jitter and footer-jump symptoms.
-    if (!preserveScroll) return;
+    // Map pan/zoom callers skip the full scroll-restore (anchor walk +
+    // grid fallback) — the browser's native overflow-anchor handles small
+    // adjustments, and JS-driven scrollBy on every moveend was the source
+    // of both small-jitter and footer-jump symptoms. BUT we still need a
+    // narrow rescue: when the user zooms into an area with no flats and
+    // the document shrinks dramatically, the browser auto-clamps scrollY
+    // to the new maxScroll — which IS the footer. Detect that case (zero
+    // visible cards AND user is in the footer zone) and scroll to top of
+    // page so the toolbar/search are in view.
+    if (!preserveScroll) {
+      requestAnimationFrame(() => {
+        if (visibleSlugs.length !== 0) return;
+        const maxScroll = Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
+        const FOOTER_BUFFER = 120;
+        if (window.scrollY > 0 && window.scrollY > maxScroll - FOOTER_BUFFER) {
+          window.scrollTo(0, 0);
+        }
+      });
+      return;
+    }
 
     // Cancel any in-flight scroll-restore from a previous applyAll. Without
     // this, two applyAll calls fired close together (rapid filter chip
