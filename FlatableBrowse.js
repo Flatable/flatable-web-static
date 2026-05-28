@@ -1633,6 +1633,16 @@
       'background:none;border:0;cursor:pointer;font-size:14px;color:#1a1714;',
       'font-family:inherit}',
       '.lfb__cb__item:hover{background:#fffaf2}',
+      // === DESKTOP WIDE-SCREEN CAP (≥768px) ===
+      // Default Webflow base caps .lfb__main at max-width:1400px which means
+      // on monitors wider than that, the layout doesn\'t grow at all. Bump
+      // the cap to 2400px so on a typical ultrawide there\'s a generous outer
+      // margin but the 50/50 split (1fr 1fr from base CSS) actually has room
+      // to expand. The card grid already uses auto-fit, minmax(280px, 1fr)
+      // so it adds columns automatically as the right half grows.
+      '@media (min-width:768px){',
+      'section.lfb__main{max-width:2400px!important}',
+      '}',
       // === MOBILE (≤767px) — scoped overrides ONLY. Desktop untouched. ===
       // Sticky stack (from top): header → toolbar (search + buttons) → map.
       // JS sets --lf-sticky-toolbar-top + --lf-sticky-map-top from real
