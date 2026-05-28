@@ -40,7 +40,7 @@
     dedupeRadius: 0.0004,
     searchDebounce: 450,
     searchFlyZoom: 15,
-    pulseDuration: 1200,
+    pulseDuration: 1800,
     toolbarTopOffset: 96,
     toolbarFooterMargin: 28,
     cardSelector: '.lfb__card-1, .lfb__card',
@@ -1470,12 +1470,21 @@
       'border-color:transparent!important;z-index:99999!important}',
       '.maplibregl-marker{will-change:transform}',
       '.lfb__card--marker-hover{box-shadow:0 14px 32px rgba(20,16,12,.18);transform:translateY(-2px)}',
+      // Two-beat pulse: a strong initial peak + a clear second beat ~55% in.
+      // Old single-beat decayed to invisible by ~60% which made the highlight
+      // easy to miss. Stronger initial ring (.7 alpha, 22px spread), deeper
+      // card lift (-6px / scale 1.025), then a second smaller beat for
+      // confirmation before settling.
       '@keyframes lfb-card-pulse{',
-      '0%{box-shadow:0 0 0 0 rgba(255,139,61,.55),0 14px 36px rgba(20,16,12,.18);transform:translateY(-4px) scale(1.02)}',
-      '60%{box-shadow:0 0 0 14px rgba(255,139,61,0),0 14px 36px rgba(20,16,12,.18);transform:translateY(-2px) scale(1.01)}',
+      '0%{box-shadow:0 0 0 0 rgba(255,139,61,.7),0 18px 44px rgba(20,16,12,.22);transform:translateY(-6px) scale(1.025)}',
+      '18%{box-shadow:0 0 0 12px rgba(255,139,61,.55),0 16px 40px rgba(20,16,12,.20);transform:translateY(-5px) scale(1.02)}',
+      '38%{box-shadow:0 0 0 24px rgba(255,139,61,0),0 14px 36px rgba(20,16,12,.18);transform:translateY(-3px) scale(1.01)}',
+      '55%{box-shadow:0 0 0 0 rgba(255,139,61,.5),0 14px 36px rgba(20,16,12,.18);transform:translateY(-4px) scale(1.015)}',
+      '78%{box-shadow:0 0 0 18px rgba(255,139,61,0),0 10px 24px rgba(20,16,12,.12);transform:translateY(-2px) scale(1.008)}',
       '100%{box-shadow:0 0 0 0 rgba(255,139,61,0),0 6px 14px rgba(20,16,12,.08);transform:none}}',
       '.lfb__card--pulse,.lfb__card-1.lfb__card--pulse{',
-      'animation:lfb-card-pulse ' + CFG.pulseDuration + 'ms cubic-bezier(.32,.72,.36,1)}',
+      'animation:lfb-card-pulse ' + CFG.pulseDuration + 'ms cubic-bezier(.32,.72,.36,1);',
+      'will-change:transform,box-shadow}',
       '#' + CFG.mapMountId + ',.maplibregl-canvas-container,.maplibregl-canvas,.maplibregl-marker{',
       'touch-action:none;overscroll-behavior:contain}',
       '.lfb__sp{position:absolute;top:calc(100% + 8px);right:0;background:#fff;',
