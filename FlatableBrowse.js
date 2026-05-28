@@ -679,8 +679,23 @@
     // browser auto-clamp to the new document bottom).
     pendingScrollRafId = requestAnimationFrame(() => {
       pendingScrollRafId = null;
+      const maxScroll = Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
+      // If we'd land within FOOTER_BUFFER of maxScroll, that's effectively
+      // the footer — bail to the top of the page instead. The user's
+      // explicit ask: "scroll to top of page rather than footer".
+      const FOOTER_BUFFER = 120;
+      const goToTop = () => {
+        if (window.scrollY > 0) window.scrollTo(0, 0);
+      };
+
+      // Empty result set after filter — user is staring at empty grid +
+      // footer. Send them to the top so the toolbar and filters are in
+      // view and they can clear constraints.
+      if (visibleSlugs.length === 0) { goToTop(); return; }
+
       // Walk the pre-reflow anchor list and use the first card that survived
       // the filter pass (still connected, parent not display:none).
+      let anchorWouldFooterJump = false;
       for (const a of anchorsBefore) {
         const parent = a.card.parentElement || a.card;
         if (!a.card.isConnected) continue;
@@ -688,17 +703,24 @@
         const newTop = a.card.getBoundingClientRect().top;
         const delta = newTop - a.offsetTop;
         if (Math.abs(delta) > 1) {
+          // If walking this delta would land us in the footer zone (the
+          // anchor moved DOWN by many hundreds of px because cards
+          // re-displayed above it, e.g. loosening a filter while scrolled
+          // deep), don't follow it — fall through to the grid fallback.
+          const projected = window.scrollY + delta;
+          if (projected > maxScroll - FOOTER_BUFFER) {
+            anchorWouldFooterJump = true;
+            break;
+          }
           window.scrollBy({ top: delta, left: 0, behavior: 'auto' });
         }
         return;
       }
-      // No previously-visible card survived (most common when the user pans
-      // the map into an empty area — every visible card gets display:none and
-      // the document collapses to header+toolbar+empty-grid+footer). The old
-      // fallback `Math.min(scrollBefore, maxScroll)` then clamped to the
-      // footer because maxScroll < scrollBefore. Instead: land at the top of
-      // the cards grid (minus the sticky header+toolbar offset) so the user
-      // sees the empty grid + their search input, ready to pan back.
+
+      // No survivor (or surviving anchor would jump us to the footer).
+      // Try to land at the top of the cards grid so the user sees the
+      // toolbar + first cards; if that target would itself land at the
+      // footer (doc has collapsed near-flat), bail to the top of page.
       const grid = document.querySelector(CFG.gridSelector);
       if (grid) {
         const gridTopDoc = grid.getBoundingClientRect().top + window.scrollY;
@@ -707,21 +729,15 @@
         const toolbar = document.querySelector('.lfb__toolbar');
         const chrome = (toolbar ? toolbar.offsetHeight : 0) + 80;
         const target = Math.max(0, gridTopDoc - chrome);
-        // Never scroll past the new document bottom — that's how footer-jumps
-        // happen. Take min with the genuine maxScroll as a final clamp.
-        const maxScroll = Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
         const safeTarget = Math.min(target, maxScroll);
+        if (safeTarget > maxScroll - FOOTER_BUFFER) { goToTop(); return; }
         if (Math.abs(window.scrollY - safeTarget) > 2) {
           window.scrollTo(0, safeTarget);
         }
         return;
       }
-      // Grid missing entirely — last-resort clamp.
-      const maxScroll = Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
-      const target = Math.min(scrollBefore, maxScroll);
-      if (Math.abs(window.scrollY - target) > 2) {
-        window.scrollTo(0, target);
-      }
+      // Grid missing entirely — last-resort: top of page.
+      goToTop();
     });
   };
 
