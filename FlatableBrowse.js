@@ -521,195 +521,6 @@
     } catch (e) { /* localStorage unavailable */ }
   };
 
-  // === SUMMARY ROW (live count + active-filter pills + Clear all) ===
-  // Sits as a child of `.lfb__toolbar` with `flex: 1 0 100%` so it forces
-  // its own row beneath the search bar + buttons on both desktop and mobile.
-  // Re-rendered from `onChange` so the count + pills always reflect the
-  // current filter state.
-  const SUMMARY_MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-  const fmtSummaryDate = (ms) => {
-    if (!ms) return '';
-    const d = new Date(ms);
-    return d.getDate() + ' ' + SUMMARY_MONTHS[d.getMonth()] + ' ' + d.getFullYear();
-  };
-  const FILTER_DESCRIPTORS = [
-    { id: 'rent',
-      isActive: (s) => s.rentMin !== null || s.rentMax !== null,
-      label: (s) => {
-        const lo = s.rentMin !== null ? 'CHF ' + s.rentMin : '';
-        const hi = s.rentMax !== null ? 'CHF ' + s.rentMax : '';
-        if (lo && hi) return 'Rent ' + lo + '–' + hi;
-        if (lo) return 'Rent ≥ ' + lo;
-        return 'Rent ≤ ' + hi;
-      },
-      clear: (s) => { s.rentMin = null; s.rentMax = null; } },
-    { id: 'size',
-      isActive: (s) => s.sizeMin !== null || s.sizeMax !== null,
-      label: (s) => {
-        const lo = s.sizeMin !== null ? s.sizeMin + ' m²' : '';
-        const hi = s.sizeMax !== null ? s.sizeMax + ' m²' : '';
-        if (lo && hi) return 'Size ' + lo + '–' + hi;
-        if (lo) return 'Size ≥ ' + lo;
-        return 'Size ≤ ' + hi;
-      },
-      clear: (s) => { s.sizeMin = null; s.sizeMax = null; } },
-    { id: 'from',
-      isActive: (s) => s.from !== null,
-      label: (s) => 'Move-in by ' + fmtSummaryDate(s.from),
-      clear: (s) => { s.from = null; } },
-    { id: 'until',
-      isActive: (s) => s.until !== null,
-      label: (s) => 'Move-out from ' + fmtSummaryDate(s.until),
-      clear: (s) => { s.until = null; } },
-    { id: 'type',
-      isActive: (s) => s.type !== 'any',
-      label: (s) => s.type === 'perm' ? 'Permanent' : 'Temporary',
-      clear: (s) => { s.type = 'any'; } },
-    { id: 'furn',
-      isActive: (s) => s.furn !== 'any',
-      label: (s) => s.furn === 'yes' ? 'Furnished' : 'Not furnished',
-      clear: (s) => { s.furn = 'any'; } },
-    { id: 'occ',
-      isActive: (s) => s.occMin !== null || s.occMax !== null,
-      label: (s) => {
-        const lo = s.occMin, hi = s.occMax;
-        if (lo !== null && hi !== null) return 'Flatmates ' + lo + '–' + hi;
-        if (lo !== null) return 'Flatmates ≥ ' + lo;
-        return 'Flatmates ≤ ' + hi;
-      },
-      clear: (s) => { s.occMin = null; s.occMax = null; } },
-    { id: 'age',
-      isActive: (s) => s.ageMin !== null || s.ageMax !== null,
-      label: (s) => {
-        const lo = s.ageMin, hi = s.ageMax;
-        if (lo !== null && hi !== null) return 'Age ' + lo + '–' + hi;
-        if (lo !== null) return 'Age ≥ ' + lo;
-        return 'Age ≤ ' + hi;
-      },
-      clear: (s) => { s.ageMin = null; s.ageMax = null; } },
-    { id: 'gender',
-      isActive: (s) => s.gender !== 'any',
-      label: (s) => 'Gender: ' + (s.gender === 'female' ? 'Female' : s.gender === 'male' ? 'Male' : 'Other'),
-      clear: (s) => { s.gender = 'any'; } },
-    { id: 'student',
-      isActive: (s) => s.student !== 'any',
-      label: (s) => s.student === 'yes' ? 'Students only' : 'No students',
-      clear: (s) => { s.student = 'any'; } },
-  ];
-
-  const injectSummaryRow = () => {
-    const tb = document.querySelector('.lfb__toolbar');
-    if (!tb || document.getElementById('lfb-summary-row')) return;
-    const row = document.createElement('div');
-    row.id = 'lfb-summary-row';
-    row.className = 'lfb__summary';
-    const countWrap = document.createElement('div');
-    countWrap.className = 'lfb__summary-count';
-    const countNum = document.createElement('strong');
-    countNum.id = 'lfb-count-num';
-    countNum.textContent = '0';
-    const countLabel = document.createElement('span');
-    countLabel.className = 'lfb__summary-count-label';
-    countLabel.textContent = 'flats';
-    countWrap.appendChild(countNum);
-    countWrap.appendChild(countLabel);
-    const pillsHost = document.createElement('div');
-    pillsHost.className = 'lfb__summary-pills';
-    pillsHost.id = 'lfb-summary-pills';
-    const clearAll = document.createElement('button');
-    clearAll.type = 'button';
-    clearAll.className = 'lfb__summary-clear';
-    clearAll.id = 'lfb-clear-all';
-    clearAll.hidden = true;
-    clearAll.textContent = 'Clear all';
-    row.appendChild(countWrap);
-    row.appendChild(pillsHost);
-    row.appendChild(clearAll);
-    tb.appendChild(row);
-  };
-
-  const renderSummaryRow = (state, panel, onChange) => {
-    const countEl = document.getElementById('lfb-count-num');
-    const pillsEl = document.getElementById('lfb-summary-pills');
-    const clearAllEl = document.getElementById('lfb-clear-all');
-    if (!countEl || !pillsEl) return;
-
-    // Live count from DOM — applyAll has already toggled display by the
-    // time renderSummaryRow runs (sync work happens before rAF).
-    countEl.textContent = $$('.' + CFG.dynItemClass + ':not([style*="display: none"])').length;
-
-    // Build the list of active pills.
-    const active = [];
-    FILTER_DESCRIPTORS.forEach((d) => {
-      if (d.isActive(state)) active.push({
-        id: d.id,
-        label: d.label(state),
-        clear: () => d.clear(state),
-      });
-    });
-    (state.amen || []).forEach((a) => active.push({
-      id: 'amen:' + a, label: a,
-      clear: () => { state.amen = state.amen.filter((x) => x !== a); },
-    }));
-    (state.lang || []).forEach((l) => active.push({
-      id: 'lang:' + l, label: l,
-      clear: () => { state.lang = state.lang.filter((x) => x !== l); },
-    }));
-    if (state.savedOnly) active.push({
-      id: 'savedOnly', label: 'Saved only',
-      clear: () => {
-        state.savedOnly = false;
-        const sb = document.getElementById('lfb-saved-btn');
-        if (sb) sb.classList.remove('is-active');
-      },
-    });
-
-    // Render pills (replace existing children with fresh ones).
-    while (pillsEl.firstChild) pillsEl.removeChild(pillsEl.firstChild);
-    active.forEach((p) => {
-      const btn = document.createElement('button');
-      btn.type = 'button';
-      btn.className = 'lfb__summary-pill';
-      btn.setAttribute('aria-label', 'Remove filter: ' + p.label);
-      const lab = document.createElement('span');
-      lab.textContent = p.label;
-      const x = document.createElement('span');
-      x.className = 'lfb__summary-pill__x';
-      x.setAttribute('aria-hidden', 'true');
-      x.textContent = '×';
-      btn.appendChild(lab);
-      btn.appendChild(x);
-      btn.addEventListener('click', () => {
-        p.clear();
-        writePersistedFilters(state);
-        if (panel) restorePersistedFilters(panel, state);
-        onChange();
-      });
-      pillsEl.appendChild(btn);
-    });
-
-    // Clear-all link.
-    if (clearAllEl) {
-      clearAllEl.hidden = active.length === 0;
-      clearAllEl.onclick = () => {
-        state.rentMin = null; state.rentMax = null;
-        state.sizeMin = null; state.sizeMax = null;
-        state.from = null; state.until = null;
-        state.type = 'any'; state.furn = 'any';
-        state.occMin = null; state.occMax = null;
-        state.ageMin = null; state.ageMax = null;
-        state.gender = 'any'; state.student = 'any';
-        state.amen = []; state.lang = [];
-        state.savedOnly = false;
-        writePersistedFilters(state);
-        if (panel) restorePersistedFilters(panel, state);
-        const sb = document.getElementById('lfb-saved-btn');
-        if (sb) sb.classList.remove('is-active');
-        onChange();
-      };
-    }
-  };
-
   // === 7. CARDS HIDE/REFLOW ===
   const matchesFilters = (d, state) => {
     if (state.savedOnly && !(d.slug && SAVED.has(d.slug))) return false;
@@ -1822,49 +1633,6 @@
       'background:none;border:0;cursor:pointer;font-size:14px;color:#1a1714;',
       'font-family:inherit}',
       '.lfb__cb__item:hover{background:#fffaf2}',
-      // === SUMMARY ROW (count + active-filter pills + Clear all) ===
-      // Lives as a child of .lfb__toolbar with flex:1 0 100% so it forces
-      // its own line on both desktop and mobile.
-      '.lfb__summary{flex:1 0 100%;order:1;display:flex;align-items:center;',
-      'gap:12px;flex-wrap:wrap;padding:8px 4px 4px;margin-top:6px;',
-      'border-top:1px solid #ece8df}',
-      '.lfb__summary:empty{display:none}',
-      '.lfb__summary-count{display:inline-flex;align-items:baseline;gap:5px;',
-      'flex-shrink:0}',
-      '#lfb-count-num{font-weight:700;font-size:15px;color:#1a1714}',
-      '.lfb__summary-count-label{font-size:13px;color:#6b6055}',
-      '.lfb__summary-pills{display:flex;flex-wrap:wrap;gap:6px;flex:1 1 auto;',
-      'min-width:0}',
-      '.lfb__summary-pill{display:inline-flex;align-items:center;gap:6px;',
-      'background:#fff4ec;color:#c44318;border:1px solid #f7b693;',
-      'border-radius:999px;padding:4px 4px 4px 12px;font-size:12px;',
-      'font-weight:500;font-family:inherit;cursor:pointer;',
-      'transition:background-color .15s,border-color .15s}',
-      '.lfb__summary-pill:hover{background:#ffe6d5;border-color:#ff8b3d}',
-      '.lfb__summary-pill__x{display:inline-flex;align-items:center;',
-      'justify-content:center;width:16px;height:16px;background:#ffd0b3;',
-      'border-radius:50%;font-size:13px;line-height:1;color:#6e2208}',
-      '.lfb__summary-clear{background:none;border:0;color:#6b6055;font-size:12px;',
-      'font-weight:500;text-decoration:underline;cursor:pointer;padding:2px 8px;',
-      'font-family:inherit;flex-shrink:0}',
-      '.lfb__summary-clear:hover{color:#1a1714}',
-      // === WIDE-SCREEN REFLOW ===
-      // Default Webflow grid is 1fr 1fr capped at 1400px, which gives 2 cards
-      // per row on any monitor. On wide screens that wastes horizontal space.
-      // Cap the map column and let the card grid (which already uses
-      // auto-fit, minmax(280px, 1fr)) form 3 columns at ~1280px and 4 at
-      // ~1800px+ as space allows.
-      '@media (min-width:768px){',
-      'section.lfb__main{',
-      'grid-template-columns:minmax(0, 1fr) minmax(360px, 480px)!important}',
-      '}',
-      '@media (min-width:1600px){',
-      'section.lfb__main{max-width:1760px!important}',
-      '}',
-      '@media (min-width:2000px){',
-      'section.lfb__main{max-width:2080px!important;',
-      'grid-template-columns:minmax(0, 1fr) 480px!important}',
-      '}',
       // === MOBILE (≤767px) — scoped overrides ONLY. Desktop untouched. ===
       // Sticky stack (from top): header → toolbar (search + buttons) → map.
       // JS sets --lf-sticky-toolbar-top + --lf-sticky-map-top from real
@@ -2257,7 +2025,6 @@
     injectCss();
     isolateMap();
     injectToolbarUI();
-    injectSummaryRow();
     setupMobileLayout();
     const panel = buildFilterPanel();
     buildSortMenu();
@@ -2294,7 +2061,6 @@
       const onChange = (opts) => {
         applyAll(map, data, state, opts);
         renderSearchPill(data);
-        renderSummaryRow(state, panel, onChange);
       };
       window.LfbApply = onChange;
       wireSavedHearts(data, onChange);
