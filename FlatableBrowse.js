@@ -982,6 +982,20 @@
         case 'room-asc':
           return (parseNum(getText(ca, 'max-occupancy')) || Infinity) -
                  (parseNum(getText(cb, 'max-occupancy')) || Infinity);
+        case 'newest': {
+          // Sort by CMS "Created On" date — newest listing first. The card
+          // template carries a hidden `data-bind="created-on"` element with
+          // the ISO date string. Items missing the binding (legacy cards)
+          // sink to the bottom.
+          const da = Date.parse(getText(ca, 'created-on') || '');
+          const db = Date.parse(getText(cb, 'created-on') || '');
+          const aMissing = isNaN(da);
+          const bMissing = isNaN(db);
+          if (aMissing && bMissing) return 0;
+          if (aMissing) return 1;
+          if (bMissing) return -1;
+          return db - da; // descending (newest first)
+        }
         default:
           return 0;
       }
