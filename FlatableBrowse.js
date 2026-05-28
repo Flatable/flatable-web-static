@@ -558,8 +558,25 @@
     return true;
   };
 
-  const applyAll = (map, data, state) => {
+  // Holds the id of the pending scroll-restore rAF (if any). Cancelled before
+  // each new applyAll() that wants to restore — prevents cascading restores
+  // from rapid moveends or fast filter-chip toggles from compounding scroll
+  // error across overlapping reflows.
+  let pendingScrollRafId = null;
+
+  const applyAll = (map, data, state, opts) => {
     if (!map) return;
+    // preserveScroll defaults to true. moveend handlers pass false because
+    // map pan/zoom is *spatial exploration* — the user wants the map to
+    // update and the cards to refilter, but they did NOT ask to have their
+    // scroll position yanked around. JS-driven scroll restore on every
+    // moveend used to (a) race when rAFs from rapid moveends overlapped,
+    // (b) actively scroll the user toward the footer when many cards
+    // re-displayed above the surviving anchor and `delta = newTop-offsetTop`
+    // came out as a large positive number that scrollBy then walked down.
+    // With preserveScroll=false the browser's native overflow-anchor decides.
+    const preserveScroll = !(opts && opts.preserveScroll === false);
+
     // Preserve scroll position across this layout pass. When filters/viewport
     // change drastically (most cards hidden) the document height shrinks and the
     // browser may auto-clamp scrollY, which feels like an unexpected jump.
@@ -572,7 +589,7 @@
     // fallback `Math.min(scrollBefore, maxScroll)` then clamped to the new
     // document bottom (= footer). Holding a list of candidates means the
     // anchor survives any filter outcome short of "every visible card hidden".
-    const anchorsBefore = (() => {
+    const anchorsBefore = preserveScroll ? (() => {
       const out = [];
       const cards = $$('.' + CFG.dynItemClass + ':not([style*="display: none"]) ' + CFG.cardSelector);
       for (const c of cards) {
@@ -582,7 +599,7 @@
         }
       }
       return out;
-    })();
+    })() : [];
     const isMobile = window.matchMedia && window.matchMedia('(max-width: 767px)').matches;
     // Bounds source priority:
     //   1. state.searchBounds (mobile user pressed Set Search Area)
@@ -641,12 +658,27 @@
     const fb = document.getElementById('lfb-filters-btn');
     if (fb) fb.classList.toggle('is-active', isAnyFilterActive(state));
 
+    // Map pan/zoom callers skip scroll restoration entirely — the browser's
+    // native overflow-anchor handles it, and JS-driven scrollBy on every
+    // moveend was the source of both small-jitter and footer-jump symptoms.
+    if (!preserveScroll) return;
+
+    // Cancel any in-flight scroll-restore from a previous applyAll. Without
+    // this, two applyAll calls fired close together (rapid filter chip
+    // toggles, bfcache restore plus a moveend, etc.) leave both rAFs queued
+    // and their delta math compounds across overlapping reflows.
+    if (pendingScrollRafId !== null) {
+      cancelAnimationFrame(pendingScrollRafId);
+      pendingScrollRafId = null;
+    }
+
     // Re-anchor scroll after the layout settles. Preferred strategy: if we
     // captured a scroll-anchor card and it's still visible after the reflow,
     // scroll so it sits at the same viewport offset (no visual jump). Fall
     // back to clamping to the new max scroll (still better than letting the
     // browser auto-clamp to the new document bottom).
-    requestAnimationFrame(() => {
+    pendingScrollRafId = requestAnimationFrame(() => {
+      pendingScrollRafId = null;
       // Walk the pre-reflow anchor list and use the first card that survived
       // the filter pass (still connected, parent not display:none).
       for (const a of anchorsBefore) {
@@ -1963,14 +1995,19 @@
         observeCardChips();
       });
 
-      const onChange = () => {
-        applyAll(map, data, state);
+      const onChange = (opts) => {
+        applyAll(map, data, state, opts);
         renderSearchPill(data);
       };
       window.LfbApply = onChange;
       wireSavedHearts(data, onChange);
       wireSavedToggle(state, onChange);
-      map.on('moveend', onChange);
+      // Map moveend: pan/zoom is spatial exploration, not a user-driven
+      // filter change. Pass preserveScroll=false so applyAll doesn't try to
+      // restore scroll — the JS restore on every moveend was racing across
+      // overlapping reflows and could even walk the user to the footer when
+      // many cards re-displayed above the surviving anchor.
+      map.on('moveend', () => onChange({ preserveScroll: false }));
 
       wireFilterPanel(panel, state, onChange);
       // Restore any persisted filter state BEFORE the first applyAll so the
