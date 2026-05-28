@@ -40,7 +40,7 @@
     dedupeRadius: 0.0004,
     searchDebounce: 450,
     searchFlyZoom: 15,
-    pulseDuration: 1800,
+    pulseDuration: 2200,
     toolbarTopOffset: 96,
     toolbarFooterMargin: 28,
     cardSelector: '.lfb__card-1, .lfb__card',
@@ -796,19 +796,41 @@
         };
 
         if (!needScroll) { pulse(); releaseLenis(); return; }
-        let done = false;
-        const onEnd = () => {
-          if (done) return;
-          done = true;
-          window.removeEventListener('scrollend', onEnd);
-          clearTimeout(fallback);
-          setTimeout(pulse, 80);
-          // Restart Lenis so the user can scroll again after the smooth scroll.
-          releaseLenis();
-        };
-        window.addEventListener('scrollend', onEnd, { once: true });
-        const fallback = setTimeout(onEnd, 800);
+        // Start the smooth scroll, then wait for window.scrollY to STOP
+        // changing before firing the pulse. The old approach relied on
+        // 'scrollend' or an 800ms fallback timer — both fired during Lenis
+        // smooth-scroll on some devices, making the pulse start mid-scroll
+        // and feel laggy. Position-stable polling guarantees the pulse only
+        // begins once the page has actually come to rest.
         window.scrollTo({ top: scY, behavior: 'smooth' });
+        let last = window.scrollY;
+        let stableFrames = 0;
+        let elapsed = 0;
+        const STABLE_FRAMES_NEEDED = 3; // ~50ms at 60fps
+        const HARD_CAP_MS = 2000;       // bail no matter what after 2s
+        const tStart = performance.now();
+        const tick = () => {
+          const cur = window.scrollY;
+          if (cur === last) {
+            stableFrames++;
+            if (stableFrames >= STABLE_FRAMES_NEEDED) {
+              pulse();
+              releaseLenis();
+              return;
+            }
+          } else {
+            last = cur;
+            stableFrames = 0;
+          }
+          elapsed = performance.now() - tStart;
+          if (elapsed > HARD_CAP_MS) {
+            pulse();
+            releaseLenis();
+            return;
+          }
+          requestAnimationFrame(tick);
+        };
+        requestAnimationFrame(tick);
       });
     });
   };
@@ -1486,20 +1508,17 @@
       'border-color:transparent!important;z-index:99999!important}',
       '.maplibregl-marker{will-change:transform}',
       '.lfb__card--marker-hover{box-shadow:0 14px 32px rgba(20,16,12,.18);transform:translateY(-2px)}',
-      // Two-beat pulse: a strong initial peak + a clear second beat ~55% in.
-      // Old single-beat decayed to invisible by ~60% which made the highlight
-      // easy to miss. Stronger initial ring (.7 alpha, 22px spread), deeper
-      // card lift (-6px / scale 1.025), then a second smaller beat for
-      // confirmation before settling.
+      // Single-beat pulse: one calm breath. Lifts the card gently, lets a
+      // soft orange ring expand and fade, then settles. 2200ms gives the
+      // visitor time to register the highlight without it feeling busy.
+      // The two-beat experiment looked laggy; this is the calm version.
       '@keyframes lfb-card-pulse{',
-      '0%{box-shadow:0 0 0 0 rgba(255,139,61,.7),0 18px 44px rgba(20,16,12,.22);transform:translateY(-6px) scale(1.025)}',
-      '18%{box-shadow:0 0 0 12px rgba(255,139,61,.55),0 16px 40px rgba(20,16,12,.20);transform:translateY(-5px) scale(1.02)}',
-      '38%{box-shadow:0 0 0 24px rgba(255,139,61,0),0 14px 36px rgba(20,16,12,.18);transform:translateY(-3px) scale(1.01)}',
-      '55%{box-shadow:0 0 0 0 rgba(255,139,61,.5),0 14px 36px rgba(20,16,12,.18);transform:translateY(-4px) scale(1.015)}',
-      '78%{box-shadow:0 0 0 18px rgba(255,139,61,0),0 10px 24px rgba(20,16,12,.12);transform:translateY(-2px) scale(1.008)}',
+      '0%{box-shadow:0 0 0 0 rgba(255,139,61,.65),0 8px 22px rgba(20,16,12,.10);transform:translateY(-2px) scale(1.012)}',
+      '45%{box-shadow:0 0 0 20px rgba(255,139,61,.35),0 14px 32px rgba(20,16,12,.16);transform:translateY(-5px) scale(1.02)}',
+      '75%{box-shadow:0 0 0 36px rgba(255,139,61,0),0 12px 28px rgba(20,16,12,.12);transform:translateY(-3px) scale(1.012)}',
       '100%{box-shadow:0 0 0 0 rgba(255,139,61,0),0 6px 14px rgba(20,16,12,.08);transform:none}}',
       '.lfb__card--pulse,.lfb__card-1.lfb__card--pulse{',
-      'animation:lfb-card-pulse ' + CFG.pulseDuration + 'ms cubic-bezier(.32,.72,.36,1);',
+      'animation:lfb-card-pulse ' + CFG.pulseDuration + 'ms cubic-bezier(.4,0,.2,1);',
       'will-change:transform,box-shadow}',
       '#' + CFG.mapMountId + ',.maplibregl-canvas-container,.maplibregl-canvas,.maplibregl-marker{',
       'touch-action:none;overscroll-behavior:contain}',
